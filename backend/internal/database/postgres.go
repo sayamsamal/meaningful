@@ -101,3 +101,68 @@ func (db *PostgresDB) BatchInsertWords(ctx context.Context, words []WordEntry) e
 
 	return tx.Commit(ctx)
 }
+
+func (db *PostgresDB) GetWord(ctx context.Context, word string) (*WordEntry, error) {
+	query := `
+		SELECT word, frequency, etymologies, senses, synonyms, antonyms
+		FROM words
+		WHERE word = $1
+		LIMIT 1
+	`
+	var entry WordEntry
+	err := db.Pool.QueryRow(ctx, query, word).Scan(
+		&entry.Word,
+		&entry.Frequency,
+		&entry.Etymologies,
+		&entry.Senses,
+		&entry.Synonyms,
+		&entry.Antonyms,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil // not found
+		}
+		return nil, fmt.Errorf("failed to query word: %w", err)
+	}
+
+	return &entry, nil
+}
+
+func (db *PostgresDB) GetMultipleWords(ctx context.Context, words []string) ([]WordEntry, error) {
+	if len(words) == 0 {
+		return []WordEntry{}, nil
+	}
+
+	query := `
+		SELECT word, frequency, etymologies, senses, synonyms, antonyms
+		FROM words
+		WHERE word = ANY($1)
+	`
+	rows, err := db.Pool.Query(ctx, query, words)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query multiple words: %w", err)
+	}
+	defer rows.Close()
+
+	var results []WordEntry
+	for rows.Next() {
+		var entry WordEntry
+		if err := rows.Scan(
+			&entry.Word,
+			&entry.Frequency,
+			&entry.Etymologies,
+			&entry.Senses,
+			&entry.Synonyms,
+			&entry.Antonyms,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan word row: %w", err)
+		}
+		results = append(results, entry)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating word rows: %w", err)
+	}
+
+	return results, nil
+}

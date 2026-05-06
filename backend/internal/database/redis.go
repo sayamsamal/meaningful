@@ -2,8 +2,10 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -63,6 +65,63 @@ func (db *RedisDB) BatchInsertAutocomplete(ctx context.Context, words []WordEntr
 	_, err := pipeline.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("redis pipeline error during FT.SUGADD: %w", err)
+	}
+
+	return nil
+}
+
+// GetAutocomplete queries the RediSearch autocomplete dictionary
+func (db *RedisDB) GetAutocomplete(ctx context.Context, prefix string, maxResults int) ([]string, error) {
+	if prefix == "" {
+		return []string{}, nil
+	}
+
+	// FT.SUGGET dict_autocomplete <prefix> MAX <maxResults>
+	res := db.Client.Do(ctx, "FT.SUGGET", "dict_autocomplete", prefix, "MAX", maxResults)
+	if err := res.Err(); err != nil {
+		if err == redis.Nil {
+			return []string{}, nil
+		}
+		return nil, fmt.Errorf("redis FT.SUGGET error: %w", err)
+	}
+
+	rawSuggestions, err := res.StringSlice()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse suggestions: %w", err)
+	}
+
+	return rawSuggestions, nil
+}
+
+// GetCachedWord fetches a full word entry from Redis
+func (db *RedisDB) GetCachedWord(ctx context.Context, word string) (*WordEntry, error) {
+	key := fmt.Sprintf("cache:word:%s", word)
+	val, err := db.Client.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil // cache miss
+		}
+		return nil, fmt.Errorf("redis get error: %w", err)
+	}
+
+	var entry WordEntry
+	if err := json.Unmarshal([]byte(val), &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal cached word: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// SetCachedWord stores a word entry in Redis with a TTL
+func (db *RedisDB) SetCachedWord(ctx context.Context, word string, entry *WordEntry, ttl time.Duration) error {
+	key := fmt.Sprintf("cache:word:%s", word)
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("failed to marshal word for cache: %w", err)
+	}
+
+	if err := db.Client.Set(ctx, key, data, ttl).Err(); err != nil {
+		return fmt.Errorf("redis set error: %w", err)
 	}
 
 	return nil

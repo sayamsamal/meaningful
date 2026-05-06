@@ -1,0 +1,107 @@
+openapi: 3.0.3
+info:
+  title: Meaningful API
+  description: REST API for the Meaningful dictionary application
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api
+    description: Local development server
+paths:
+  /word/{word}:
+    get:
+      summary: Get details of a single word
+      parameters:
+        - name: word
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The dictionary word to fetch
+      responses:
+        '200':
+          description: Word details found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WordEntry'
+        '404':
+          description: Word not found
+          
+  /words:
+    get:
+      summary: Get details of multiple words
+      parameters:
+        - name: w
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Comma-separated list of words to fetch (e.g. w=apple,banana)
+      responses:
+        '200':
+          description: A list of word details
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WordEntry'
+
+  /autocomplete:
+    get:
+      summary: Get fast autocomplete suggestions
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The prefix search string
+      responses:
+        '200':
+          description: An array of string suggestions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+components:
+  schemas:
+    WordEntry:
+      type: object
+      properties:
+        word:
+          type: string
+        frequency:
+          type: number
+          format: float
+        etymologies:
+          type: array
+          items:
+            type: string
+        senses:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/Definition'
+        synonyms:
+          type: array
+          items:
+            type: string
+        antonyms:
+          type: array
+          items:
+            type: string
+            
+    Definition:
+      type: object
+      properties:
+        definition:
+          type: string
+        examples:
+          type: array
+          items:
+            type: string
