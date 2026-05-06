@@ -7,7 +7,7 @@
 - **Frontend**: SolidStart (TypeScript, Vite)
 - **Backend**: Golang (Go 1.26)
 - **Primary Database**: PostgreSQL (Stores full relational and structured JSONB data)
-- **Cache/Autocomplete**: Redis Stack (RedisJSON & RediSearch for fast prefix queries)
+- **Cache/Autocomplete**: Redis Stack (RediSearch for fast prefix queries & LRU JSON caching)
 - **Orchestration**: Docker Compose
 
 ## Key Directories
@@ -20,7 +20,7 @@
 ## Local Setup
 Ensure Docker is installed and running.
 1. Run `docker compose up -d`
-2. Access the frontend at `http://localhost:3000`
+2. Access the frontend at `http://localhost:5173`
 3. Access the backend at `http://localhost:8080`
 4. Access Redis UI at `http://localhost:8001`
 
