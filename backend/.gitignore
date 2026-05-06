@@ -1,0 +1,12 @@
+# Python (for export_wordfreq.py)
+__pycache__/
+/scripts/venv/
+.env
+
+# Generated data
+/data/*.jsonl
+/data/*.gz
+
+# OS specific
+.DS_Store
+Thumbs.db

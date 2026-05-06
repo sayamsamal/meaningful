@@ -1,0 +1,85 @@
+# Allowlisted Dictionary Words
+# Words listed here bypass the regex filter in passesDictionaryWordFilter().
+# Use this for legitimate dictionary words that start with digits or contain
+# special symbols (&, /, etc.) that the pattern filter would otherwise reject.
+# One word per line. Blank lines and lines starting with # are ignored.
+
+# --- Number-starting words ---
+007
+10 000-foot view
+101
+1040 form
+1066
+1066 And All That
+10p
+12
+1471
+15
+18
+18-wheeler
+2%
+2.1
+2.2
+20/20
+20/20 vision
+2001: A Space Odyssey
+20p
+20th Century Fox
+24-hour clock
+24/7
+2D
+2p
+35 mm
+360-degree
+360-degree appraisal
+360-degree feedback
+3D
+3D printer
+3G
+3M
+3PS
+4-H
+401(k)
+404
+411
+42nd Street
+4G
+4x4
+5 eyes
+5 o'clock shadow
+50-yard line
+50p
+5G
+5p
+60 Minutes
+7-Eleven
+7/7
+737
+747
+7UP
+800 number
+9 to 5
+9/11
+900 number
+911
+99
+999
+
+# --- Symbol-containing words ---
+Q&A
+R&B
+R&D
+B&B
+rock 'n' roll
+rock & roll
+AT&T
+M&A
+P&L
+S&P
+T&C
+C/O
+c/o
+w/
+w/o
+N/A
+n/a

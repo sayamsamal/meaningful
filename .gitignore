@@ -1,0 +1,11 @@
+# System Files
+.DS_Store
+Thumbs.db
+
+# Project-wide environments
+.env
+.env.local
+
+# IDE and Editor files
+.vscode/
+.idea/
