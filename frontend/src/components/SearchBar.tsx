@@ -13,9 +13,12 @@ import { useNavigate } from "@solidjs/router";
  * Runs client-side (no "use server") to minimize latency for
  * real-time keystroke responses.
  */
+const BACKEND_URL =
+  (import.meta as any).env?.VITE_BACKEND_URL ?? "http://localhost:8080";
+
 const fetchSuggestions = async (query: string): Promise<string[]> => {
   const response = await fetch(
-    `http://localhost:8080/api/autocomplete?query=${encodeURIComponent(query)}`
+    `${BACKEND_URL}/api/autocomplete?query=${encodeURIComponent(query)}`
   );
   if (!response.ok) return [];
   return response.json();
