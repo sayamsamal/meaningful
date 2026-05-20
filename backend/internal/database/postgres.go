@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -59,6 +60,7 @@ func (db *PostgresDB) InitSchema(ctx context.Context) error {
 		antonyms JSONB
 	);
 	CREATE INDEX IF NOT EXISTS idx_words_word ON words (word);
+	CREATE INDEX IF NOT EXISTS idx_words_word_lower ON words (LOWER(word));
 	`
 	_, err := db.Pool.Exec(ctx, query)
 	if err != nil {
@@ -106,7 +108,7 @@ func (db *PostgresDB) GetWord(ctx context.Context, word string) (*WordEntry, err
 	query := `
 		SELECT word, frequency, etymologies, senses, synonyms, antonyms
 		FROM words
-		WHERE word = $1
+		WHERE LOWER(word) = $1
 		LIMIT 1
 	`
 	var entry WordEntry
@@ -133,12 +135,18 @@ func (db *PostgresDB) GetMultipleWords(ctx context.Context, words []string) ([]W
 		return []WordEntry{}, nil
 	}
 
+	// Lowercase in Go to keep the SQL simple
+	lowerWords := make([]string, len(words))
+	for i, w := range words {
+		lowerWords[i] = strings.ToLower(w)
+	}
+
 	query := `
 		SELECT word, frequency, etymologies, senses, synonyms, antonyms
 		FROM words
-		WHERE word = ANY($1)
+		WHERE LOWER(word) = ANY($1)
 	`
-	rows, err := db.Pool.Query(ctx, query, words)
+	rows, err := db.Pool.Query(ctx, query, lowerWords)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query multiple words: %w", err)
 	}

@@ -36,7 +36,11 @@ func (s *Server) HandleGetWord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Safe character replacement instead of unescaping.
+	// This maps URL underscores back to database spaces.
+	word = strings.ReplaceAll(word, "_", " ")
 	word = strings.ToLower(word)
+	
 	ctx := r.Context()
 
 	// 1. Try Cache

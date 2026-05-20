@@ -71,6 +71,10 @@ components:
   schemas:
     WordEntry:
       type: object
+      required:
+        - word
+        - frequency
+        - senses
       properties:
         word:
           type: string
