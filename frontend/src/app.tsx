@@ -1,22 +1,37 @@
-import { createSignal } from "solid-js";
+import { Suspense } from "solid-js";
+import { Router } from "@solidjs/router";
+import { FileRoutes } from "@solidjs/start/router";
 import "./app.css";
+import SearchBar from "./components/SearchBar";
 
 export default function App() {
-  const [count, setCount] = createSignal(0);
-
   return (
-    <main>
-      <h1>Hello world!</h1>
-      <button class="increment" onClick={() => setCount(count() + 1)} type="button">
-        Clicks: {count()}
-      </button>
-      <p>
-        Visit{" "}
-        <a href="https://start.solidjs.com" target="_blank">
-          start.solidjs.com
-        </a>{" "}
-        to learn how to build SolidStart apps.
-      </p>
-    </main>
+    <Router
+      root={(props) => (
+        <div class="app-layout">
+          <header class="app-layout__header">
+            <SearchBar />
+          </header>
+
+          <main class="app-layout__main">
+            <Suspense
+              fallback={
+                <div style="color: white; padding: 2rem;">
+                  Loading content...
+                </div>
+              }
+            >
+              {props.children}
+            </Suspense>
+          </main>
+
+          <footer class="app-layout__footer">
+            <p>Meaningful Dictionary • Built with SolidStart</p>
+          </footer>
+        </div>
+      )}
+    >
+      <FileRoutes />
+    </Router>
   );
 }

@@ -5,9 +5,11 @@
     "dev": "vite dev",
     "build": "vite build",
     "start": "vite start",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "gen-types": "openapi-typescript ../backend/meaningful.yaml -o src/types/schema.ts"
   },
   "dependencies": {
+    "@solidjs/router": "^0.16.1",
     "@solidjs/start": "2.0.0-alpha.2",
     "@solidjs/vite-plugin-nitro-2": "^0.1.0",
     "solid-js": "^1.9.5",
@@ -17,8 +19,7 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.2.4",
-    "postcss": "^8.5.12",
-    "tailwindcss": "^4.2.4"
+    "@types/node": "^25.6.0",
+    "openapi-typescript": "^7.13.0"
   }
 }
