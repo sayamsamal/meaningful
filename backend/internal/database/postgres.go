@@ -61,6 +61,13 @@ func (db *PostgresDB) InitSchema(ctx context.Context) error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_words_word ON words (word);
 	CREATE INDEX IF NOT EXISTS idx_words_word_lower ON words (LOWER(word));
+
+	ALTER TABLE words ADD COLUMN IF NOT EXISTS origin_story TEXT;
+	ALTER TABLE words ADD COLUMN IF NOT EXISTS enriched_senses JSONB;
+	ALTER TABLE words ADD COLUMN IF NOT EXISTS data_enriched BOOLEAN NOT NULL DEFAULT FALSE;
+	CREATE INDEX IF NOT EXISTS idx_words_unenriched
+		ON words (frequency DESC)
+		WHERE NOT data_enriched AND frequency > 0;
 	`
 	_, err := db.Pool.Exec(ctx, query)
 	if err != nil {

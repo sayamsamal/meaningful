@@ -2,6 +2,8 @@
 
 This file is the primary reference for working in this codebase. Read it before making changes.
 
+> **Also read [`knowledge.claude.md`](knowledge.claude.md)** — a living log of design decisions, resolved pitfalls, and empirical findings (e.g. token budgets for the enrichment pipeline). **At the end of every session that produces a significant finding or resolves a non-obvious bug, append a new dated entry to the relevant section of `knowledge.claude.md`.** Never delete entries.
+
 ---
 
 ## Project Overview
