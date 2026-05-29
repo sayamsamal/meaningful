@@ -6,27 +6,43 @@ import "github.com/sashabaranov/go-openai/jsonschema"
 // guided decoding requires an object root, so results are wrapped under
 // "entries". Every object marks all properties required with
 // additionalProperties:false for strict adherence.
+//
+// Shape: entries[] → { word, origin_story, senses[] }
+//   senses[]  (pos-groups) → { pos, senses[] }
+//     senses[] (meanings)  → { sense, examples[], subsenses[] }
+//       subsenses[]        → { sense, examples[] }
 func enrichedSchema() *jsonschema.Definition {
 	str := jsonschema.Definition{Type: jsonschema.String}
 	strArray := jsonschema.Definition{Type: jsonschema.Array, Items: &jsonschema.Definition{Type: jsonschema.String}}
 
-	definition := jsonschema.Definition{
+	subsense := jsonschema.Definition{
 		Type: jsonschema.Object,
 		Properties: map[string]jsonschema.Definition{
-			"definition": str,
-			"examples":   strArray,
+			"sense":   str,
+			"example": str,
 		},
-		Required:             []string{"definition", "examples"},
+		Required:             []string{"sense", "example"},
 		AdditionalProperties: false,
 	}
 
-	senseGroup := jsonschema.Definition{
+	meaning := jsonschema.Definition{
 		Type: jsonschema.Object,
 		Properties: map[string]jsonschema.Definition{
-			"pos":         str,
-			"definitions": {Type: jsonschema.Array, Items: &definition},
+			"sense":     str,
+			"examples":  strArray,
+			"subsenses": {Type: jsonschema.Array, Items: &subsense},
 		},
-		Required:             []string{"pos", "definitions"},
+		Required:             []string{"sense", "examples", "subsenses"},
+		AdditionalProperties: false,
+	}
+
+	posGroup := jsonschema.Definition{
+		Type: jsonschema.Object,
+		Properties: map[string]jsonschema.Definition{
+			"pos":    str,
+			"senses": {Type: jsonschema.Array, Items: &meaning},
+		},
+		Required:             []string{"pos", "senses"},
 		AdditionalProperties: false,
 	}
 
@@ -35,7 +51,7 @@ func enrichedSchema() *jsonschema.Definition {
 		Properties: map[string]jsonschema.Definition{
 			"word":         str,
 			"origin_story": str,
-			"senses":       {Type: jsonschema.Array, Items: &senseGroup},
+			"senses":       {Type: jsonschema.Array, Items: &posGroup},
 		},
 		Required:             []string{"word", "origin_story", "senses"},
 		AdditionalProperties: false,

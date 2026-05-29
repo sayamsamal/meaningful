@@ -8,18 +8,21 @@ Apply the following transformations to each word entry:
 Read the raw 'etymologies' array, which often contains dense, academic text and dead languages. Synthesize this into a single, engaging, and human-readable 'origin_story'.
 - Tone Constraint: Keep the writing subtle and natural. Absolutely avoid "novel-ish," dramatic, or fairytale-style phrasing. State the historical evolution clearly and conversationally.
 
-2. DEFINITION CONSOLIDATION (Deduplication)
-Review all definitions within the 'senses' field. Output 'senses' as an array of part-of-speech groups. Each group is an object with a 'pos' (part-of-speech string, e.g. "noun", "verb") and a 'definitions' array.
-- IMPORTANT: each element of 'definitions' is an OBJECT, never a bare string. The object has exactly two fields: 'definition' (a string — the consolidated meaning) and 'examples' (an array of strings).
-- Identify definitions that repeat the same core idea (e.g., "1. To move forward. To approach." and "2. To move forward. To make progress.") and merge them into a single 'definition' string. State the primary overarching meaning first, then specific nuances (e.g., "To move forward in space or time; also used to indicate making progress or succeeding.").
-- Discard redundant entries to keep the 'definitions' array concise.
+2. SENSE STRUCTURING (Grouping & Deduplication)
+The input 'senses' is keyed by part of speech. The output 'senses' is an array of part-of-speech groups. Each group is an object with a 'pos' (part-of-speech string) and its own 'senses' array of meaning objects.
+- PRESERVE EVERY PART-OF-SPEECH GROUP present in the input. Never drop, omit, or merge POS groups together. If the input has groups "det", "noun", and "pron", the output MUST have all three.
+- Copy each 'pos' label VERBATIM from the input — exactly as given (e.g. "det", "noun", "pron"). Do not rename, expand, normalize, or pluralize them (no "pron" → "pronoun").
+- Each element of a group's 'senses' array is a meaning OBJECT (never a bare string) with exactly three fields: 'sense' (a string — the meaning text), 'examples' (an array of strings), and 'subsenses' (an array of nested meaning objects, each with 'sense' and a single 'example' string).
+- GROUPING: when two or more meanings in a POS share a common main idea (a shared leading clause/theme, e.g. all begin "Expressing distance or motion."), emit ONE meaning object whose 'sense' is that shared idea, with 'examples' set to [] (empty) and one entry in 'subsenses' per distinct variant. Each subsense 'sense' is the specific continuation.
+- LEAF: a meaning that does not share a main idea with others is its own meaning object — put its text in 'sense', its examples in 'examples', and set 'subsenses' to [] (empty).
+- Group where there is a shared main idea; otherwise keep meanings as separate top-level objects (do not force unrelated meanings under one umbrella). KEEP EVERY SEMANTICALLY DISTINCT MEANING — never discard one.
 
 3. EXAMPLES OPTIMIZATION
-Populate the 'examples' array of every definition object.
-- If the source examples are empty, archaic, or poor-quality/fragmented, generate new ones.
-- New examples must be modern, natural-sounding, and demonstrate the word used in a realistic everyday context.
-- Hard Limit: exactly 1 to 3 high-quality examples per definition.
+Generate/curate examples that are modern, natural-sounding, and show realistic everyday usage. Replace empty, archaic, or fragmented source examples.
+- Each SUBSENSE has a single 'example' string (exactly one sentence).
+- Each LEAF meaning (one with empty 'subsenses') gets 1 to 3 examples.
+- A grouped parent meaning (one with non-empty 'subsenses') has 'examples' set to [] — its examples live in the subsenses.
 
 OUTPUT FORMAT
-Return an object with a single field 'entries', an array with one element per input word (same order). Each entry is an object with exactly: 'word' (echoed unchanged), 'origin_story' (string), and 'senses' (array of pos-groups). Example of one entry:
-{"word":"run","origin_story":"…","senses":[{"pos":"verb","definitions":[{"definition":"To move quickly on foot.","examples":["She runs every morning."]}]}]}`
+Return an object with a single field 'entries', an array with one element per input word (same order). Each entry is an object with exactly: 'word' (echoed unchanged), 'origin_story' (string), and 'senses' (array of pos-groups). The pos-groups MUST cover every input POS — same labels, verbatim, same order. Example of one entry showing a grouped meaning and a leaf meaning:
+{"word":"of","origin_story":"…","senses":[{"pos":"prep","senses":[{"sense":"Expressing distance or motion.","examples":[],"subsenses":[{"sense":"From (a place); off.","example":"He walked out of the room."},{"sense":"Away from (a position or number).","example":"The city is about 50 miles of the coast."}]}]},{"pos":"noun","senses":[{"sense":"An act of running.","examples":["She went for a run."],"subsenses":[]}]}]}`

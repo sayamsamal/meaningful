@@ -7,21 +7,27 @@ import (
 	"meaningful-backend/internal/database"
 )
 
+type SubDefinition struct {
+	Sense   string `json:"sense"`
+	Example string `json:"example"` // exactly one
+}
+
 type EnrichedDefinition struct {
-	Definition string   `json:"definition"`
-	Examples   []string `json:"examples"`
+	Sense     string          `json:"sense"`     // the meaning text
+	Examples  []string        `json:"examples"`  // 1–3 for a leaf; empty when subsenses present
+	Subsenses []SubDefinition `json:"subsenses"` // empty for a leaf
 }
 
 // UnmarshalJSON tolerates the model occasionally emitting a bare string in place
-// of a {definition, examples} object — treating it as the definition with no
-// examples — so a single off-schema element doesn't fail the whole batch.
+// of a meaning object — treating it as the sense text with no examples or
+// subsenses — so a single off-schema element doesn't fail the whole batch.
 func (d *EnrichedDefinition) UnmarshalJSON(data []byte) error {
 	if trimmed := bytes.TrimSpace(data); len(trimmed) > 0 && trimmed[0] == '"' {
 		var s string
 		if err := json.Unmarshal(trimmed, &s); err != nil {
 			return err
 		}
-		d.Definition, d.Examples = s, nil
+		d.Sense, d.Examples, d.Subsenses = s, nil, nil
 		return nil
 	}
 	type alias EnrichedDefinition // avoid recursion
@@ -34,8 +40,8 @@ func (d *EnrichedDefinition) UnmarshalJSON(data []byte) error {
 }
 
 type SenseGroup struct {
-	POS         string               `json:"pos"`
-	Definitions []EnrichedDefinition `json:"definitions"`
+	POS    string               `json:"pos"`
+	Senses []EnrichedDefinition `json:"senses"`
 }
 
 // enrichInput is the trimmed payload sent to the model. Synonyms, antonyms, and
