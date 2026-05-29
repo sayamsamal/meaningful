@@ -1,39 +1,52 @@
 package enrich
 
-import "google.golang.org/genai"
+import "github.com/sashabaranov/go-openai/jsonschema"
 
-func responseSchema() *genai.Schema {
-	entry := &genai.Schema{
-		Type: genai.TypeObject,
-		Properties: map[string]*genai.Schema{
-			"word":         {Type: genai.TypeString},
-			"origin_story": {Type: genai.TypeString},
-			"senses": {
-				Type: genai.TypeArray,
-				Items: &genai.Schema{
-					Type: genai.TypeObject,
-					Properties: map[string]*genai.Schema{
-						"pos": {Type: genai.TypeString},
-						"definitions": {
-							Type: genai.TypeArray,
-							Items: &genai.Schema{
-								Type: genai.TypeObject,
-								Properties: map[string]*genai.Schema{
-									"definition": {Type: genai.TypeString},
-									"examples":   {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}},
-								},
-								Required:         []string{"definition", "examples"},
-								PropertyOrdering: []string{"definition", "examples"},
-							},
-						},
-					},
-					Required:         []string{"pos", "definitions"},
-					PropertyOrdering: []string{"pos", "definitions"},
-				},
-			},
+// enrichedSchema builds the json_schema passed to response_format. vLLM/NIM
+// guided decoding requires an object root, so results are wrapped under
+// "entries". Every object marks all properties required with
+// additionalProperties:false for strict adherence.
+func enrichedSchema() *jsonschema.Definition {
+	str := jsonschema.Definition{Type: jsonschema.String}
+	strArray := jsonschema.Definition{Type: jsonschema.Array, Items: &jsonschema.Definition{Type: jsonschema.String}}
+
+	definition := jsonschema.Definition{
+		Type: jsonschema.Object,
+		Properties: map[string]jsonschema.Definition{
+			"definition": str,
+			"examples":   strArray,
 		},
-		Required:         []string{"word", "origin_story", "senses"},
-		PropertyOrdering: []string{"word", "origin_story", "senses"},
+		Required:             []string{"definition", "examples"},
+		AdditionalProperties: false,
 	}
-	return &genai.Schema{Type: genai.TypeArray, Items: entry}
+
+	senseGroup := jsonschema.Definition{
+		Type: jsonschema.Object,
+		Properties: map[string]jsonschema.Definition{
+			"pos":         str,
+			"definitions": {Type: jsonschema.Array, Items: &definition},
+		},
+		Required:             []string{"pos", "definitions"},
+		AdditionalProperties: false,
+	}
+
+	entry := jsonschema.Definition{
+		Type: jsonschema.Object,
+		Properties: map[string]jsonschema.Definition{
+			"word":         str,
+			"origin_story": str,
+			"senses":       {Type: jsonschema.Array, Items: &senseGroup},
+		},
+		Required:             []string{"word", "origin_story", "senses"},
+		AdditionalProperties: false,
+	}
+
+	return &jsonschema.Definition{
+		Type: jsonschema.Object,
+		Properties: map[string]jsonschema.Definition{
+			"entries": {Type: jsonschema.Array, Items: &entry},
+		},
+		Required:             []string{"entries"},
+		AdditionalProperties: false,
+	}
 }

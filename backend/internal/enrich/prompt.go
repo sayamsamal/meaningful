@@ -9,17 +9,17 @@ Read the raw 'etymologies' array, which often contains dense, academic text and 
 - Tone Constraint: Keep the writing subtle and natural. Absolutely avoid "novel-ish," dramatic, or fairytale-style phrasing. State the historical evolution clearly and conversationally.
 
 2. DEFINITION CONSOLIDATION (Deduplication)
-Review all definitions within the 'senses' field. Output 'senses' as an array of objects, each with a 'pos' (part-of-speech string, e.g. "noun", "verb") and a 'definitions' array.
-- Identify definitions that repeat the same core idea (e.g., "1. To move forward. To approach." and "2. To move forward. To make progress.").
-- Merge these into a single, comprehensive definition.
-- Format the merged string logically: state the primary overarching meaning first, followed by specific nuances if necessary (e.g., "To move forward in space or time; also used to indicate making progress or succeeding.").
-- Discard the redundant entries to keep the 'definitions' array concise.
+Review all definitions within the 'senses' field. Output 'senses' as an array of part-of-speech groups. Each group is an object with a 'pos' (part-of-speech string, e.g. "noun", "verb") and a 'definitions' array.
+- IMPORTANT: each element of 'definitions' is an OBJECT, never a bare string. The object has exactly two fields: 'definition' (a string — the consolidated meaning) and 'examples' (an array of strings).
+- Identify definitions that repeat the same core idea (e.g., "1. To move forward. To approach." and "2. To move forward. To make progress.") and merge them into a single 'definition' string. State the primary overarching meaning first, then specific nuances (e.g., "To move forward in space or time; also used to indicate making progress or succeeding.").
+- Discard redundant entries to keep the 'definitions' array concise.
 
 3. EXAMPLES OPTIMIZATION
-Evaluate the 'examples' array for every consolidated definition.
-- If the array is empty, contains archaic language, or has poor-quality/fragmented examples, generate new ones.
+Populate the 'examples' array of every definition object.
+- If the source examples are empty, archaic, or poor-quality/fragmented, generate new ones.
 - New examples must be modern, natural-sounding, and demonstrate the word used in a realistic everyday context.
-- Hard Limit: You must return exactly 1 to 3 high-quality examples per definition. Delete excess examples.
+- Hard Limit: exactly 1 to 3 high-quality examples per definition.
 
 OUTPUT FORMAT
-Each entry in the output array must contain exactly: 'word' (echoed unchanged), 'origin_story', and 'senses' (the array described in transformation 2). Maintain the exact order of the input array in your output.`
+Return an object with a single field 'entries', an array with one element per input word (same order). Each entry is an object with exactly: 'word' (echoed unchanged), 'origin_story' (string), and 'senses' (array of pos-groups). Example of one entry:
+{"word":"run","origin_story":"…","senses":[{"pos":"verb","definitions":[{"definition":"To move quickly on foot.","examples":["She runs every morning."]}]}]}`

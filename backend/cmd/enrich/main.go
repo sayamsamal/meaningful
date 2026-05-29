@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -15,6 +16,9 @@ import (
 )
 
 func main() {
+	reset := flag.Bool("reset", false, "clear all prior enrichment output before running")
+	flag.Parse()
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -43,8 +47,16 @@ func main() {
 		log.Fatalf("init schema: %v", err)
 	}
 
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	svc, err := enrich.NewService(ctx, db, apiKey)
+	if *reset {
+		n, err := db.ResetEnrichment(ctx)
+		if err != nil {
+			log.Fatalf("reset enrichment: %v", err)
+		}
+		log.Printf("reset enrichment on %d rows", n)
+	}
+
+	apiKey := os.Getenv("NVIDIA_API_KEY")
+	svc, err := enrich.NewService(db, apiKey)
 	if err != nil {
 		log.Fatalf("enrich service: %v", err)
 	}

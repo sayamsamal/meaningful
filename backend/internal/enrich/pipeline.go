@@ -17,23 +17,23 @@ import (
 )
 
 type PipelineConfig struct {
-	Workers        int           // parallel API calls (default 5)
-	RPM            int           // rate ceiling (default 15)
-	DailyMax       int           // request cap per run (default 1490 of 1500 RPD)
-	CharBudget     int           // adaptive batch size in raw input chars (default 115_000)
+	Workers        int           // parallel API calls (default 10)
+	RPM            int           // rate ceiling (default 40)
+	DailyMax       int           // request cap per run; 0 = unlimited (NVIDIA tier has no RPD)
+	CharBudget     int           // adaptive batch size in raw input chars (default 30_000)
 	FetchLimit     int           // SQL LIMIT for next-batch query (default 500)
-	RequestTimeout time.Duration // per-batch API call timeout (default 30 min)
+	RequestTimeout time.Duration // per-batch API call timeout (default 10 min)
 	MaxRetries     int           // retries per batch on transient errors (default 5)
 }
 
 func DefaultConfig() PipelineConfig {
 	return PipelineConfig{
-		Workers:        5,
-		RPM:            15,
-		DailyMax:       1490,
-		CharBudget:     115_000,
+		Workers:        10,
+		RPM:            38,
+		DailyMax:       0,
+		CharBudget:     30_000,
 		FetchLimit:     500,
-		RequestTimeout: 30 * time.Minute,
+		RequestTimeout: 10 * time.Minute,
 		MaxRetries:     5,
 	}
 }
@@ -52,7 +52,10 @@ func (s *Service) RunPipeline(ctx context.Context, cfg PipelineConfig) error {
 	}
 	log.Printf("resume position: %d words remain to enrich", remaining)
 
-	limiter := rate.NewLimiter(rate.Every(time.Minute/time.Duration(cfg.RPM)), cfg.RPM)
+	// Burst 1 paces requests evenly (one per interval). A burst equal to RPM
+	// would start with a full bucket and let all workers fire at once, tripping
+	// the server's rolling-window 429.
+	limiter := rate.NewLimiter(rate.Every(time.Minute/time.Duration(cfg.RPM)), 1)
 
 	var (
 		requestsUsed atomic.Int64
@@ -74,8 +77,12 @@ func (s *Service) RunPipeline(ctx context.Context, cfg PipelineConfig) error {
 	)
 
 	describe := func() {
-		bar.Describe(fmt.Sprintf("Enriching | req %d/%d | batches %d | fails %d",
-			requestsUsed.Load(), cfg.DailyMax, batchesDone.Load(), failures.Load()))
+		reqField := fmt.Sprintf("%d", requestsUsed.Load())
+		if cfg.DailyMax > 0 {
+			reqField = fmt.Sprintf("%d/%d", requestsUsed.Load(), cfg.DailyMax)
+		}
+		bar.Describe(fmt.Sprintf("Enriching | req %s | batches %d | fails %d",
+			reqField, batchesDone.Load(), failures.Load()))
 	}
 	describe()
 
@@ -151,7 +158,7 @@ func (s *Service) runFetcher(ctx context.Context, cfg PipelineConfig, requestsUs
 	queued := make(map[string]struct{})
 
 	for {
-		if requestsUsed.Load() >= int64(cfg.DailyMax) {
+		if cfg.DailyMax > 0 && requestsUsed.Load() >= int64(cfg.DailyMax) {
 			log.Printf("daily quota reached (%d) — stopping fetcher", cfg.DailyMax)
 			return nil
 		}

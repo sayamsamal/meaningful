@@ -4,38 +4,41 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
-	"google.golang.org/genai"
+	jsonrepair "github.com/RealAlexandreAI/json-repair"
+	openai "github.com/sashabaranov/go-openai"
 
 	"meaningful-backend/internal/database"
 )
 
 const (
-	modelName     = "gemma-4-31b-it"
-	maxOutputToks = 32_000
+	modelName     = "meta/llama-3.3-70b-instruct"
+	nvidiaBaseURL = "https://integrate.api.nvidia.com/v1"
+	maxOutputTok  = 16384
 )
 
 type Service struct {
-	Client *genai.Client
+	Client *openai.Client
 	DB     *database.PostgresDB
 }
 
-func NewService(ctx context.Context, db *database.PostgresDB, apiKey string) (*Service, error) {
+func NewService(db *database.PostgresDB, apiKey string) (*Service, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("GEMINI_API_KEY is empty")
+		return nil, fmt.Errorf("NVIDIA_API_KEY is empty")
 	}
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  apiKey,
-		Backend: genai.BackendGeminiAPI,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("genai client: %w", err)
-	}
-	return &Service{Client: client, DB: db}, nil
+	cfg := openai.DefaultConfig(apiKey)
+	cfg.BaseURL = nvidiaBaseURL
+	return &Service{Client: openai.NewClientWithConfig(cfg), DB: db}, nil
 }
 
-// EnrichBatch sends a slice of raw WordEntry rows to Gemma 4 31B and returns
-// the enriched results. Caller is responsible for rate limiting and persistence.
+// enrichResponse matches the object-rooted json_schema: { "entries": [...] }.
+type enrichResponse struct {
+	Entries []EnrichedWordEntry `json:"entries"`
+}
+
+// EnrichBatch sends a slice of raw WordEntry rows to Llama 3.3 70B (NVIDIA NIM)
+// and returns the enriched results. Caller handles rate limiting and persistence.
 func (s *Service) EnrichBatch(ctx context.Context, words []database.WordEntry) ([]EnrichedWordEntry, error) {
 	if len(words) == 0 {
 		return nil, nil
@@ -55,37 +58,47 @@ func (s *Service) EnrichBatch(ctx context.Context, words []database.WordEntry) (
 		return nil, fmt.Errorf("marshal input: %w", err)
 	}
 
-	prompt := fmt.Sprintf("%s\n\nHere is the input JSON array:\n%s", systemPrompt, inputJSON)
-
-	temp := float32(1.0)
-	topP := float32(0.95)
-	topK := float32(64)
-
-	resp, err := s.Client.Models.GenerateContent(
-		ctx,
-		modelName,
-		genai.Text(prompt),
-		&genai.GenerateContentConfig{
-			Temperature:      &temp,
-			TopP:             &topP,
-			TopK:             &topK,
-			MaxOutputTokens:  maxOutputToks,
-			ResponseMIMEType: "application/json",
-			ResponseSchema:   responseSchema(),
-			// Disable reasoning mode — <|think|> tokens would prepend the JSON
-			// and break json.Unmarshal. See knowledge.claude.md.
-			ThinkingConfig: &genai.ThinkingConfig{ThinkingBudget: genai.Ptr[int32](0)},
+	resp, err := s.Client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: modelName,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
+			{Role: openai.ChatMessageRoleUser, Content: fmt.Sprintf("Here is the input JSON array:\n%s", inputJSON)},
 		},
-	)
+		Temperature: 0.5,
+		TopP:        0.9,
+		MaxTokens:   maxOutputTok,
+		ResponseFormat: &openai.ChatCompletionResponseFormat{
+			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
+			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
+				Name:   "enriched_words",
+				Schema: enrichedSchema(),
+				Strict: true,
+			},
+		},
+	})
 	if err != nil {
-		return nil, fmt.Errorf("generate: %w", err)
+		return nil, fmt.Errorf("create chat completion: %w", err)
+	}
+	if len(resp.Choices) == 0 {
+		return nil, fmt.Errorf("no choices in response")
+	}
+	if resp.Choices[0].FinishReason == openai.FinishReasonLength {
+		log.Printf("warning: response truncated (finish_reason=length) for %d-word batch — consider a smaller batch or higher max_tokens", len(words))
 	}
 
-	var enriched []EnrichedWordEntry
-	if err := json.Unmarshal([]byte(resp.Text()), &enriched); err != nil {
-		return nil, fmt.Errorf("unmarshal response: %w", err)
+	content := resp.Choices[0].Message.Content
+
+	// json-repair patches any minor malformations before strict unmarshalling.
+	repaired, err := jsonrepair.RepairJSON(content)
+	if err != nil {
+		return nil, fmt.Errorf("repair response: %w (first 300 chars: %q)", err, headSnippet(content))
 	}
-	return enriched, nil
+
+	var parsed enrichResponse
+	if err := json.Unmarshal([]byte(repaired), &parsed); err != nil {
+		return nil, fmt.Errorf("unmarshal response: %w (first 300 chars: %q)", err, headSnippet(repaired))
+	}
+	return parsed.Entries, nil
 }
 
 // EnrichOne is the on-demand single-word path: load the row by name, enrich it,
@@ -114,3 +127,9 @@ func (s *Service) EnrichOne(ctx context.Context, word string) (*EnrichedWordEntr
 	return &enriched[0], nil
 }
 
+func headSnippet(s string) string {
+	if len(s) > 300 {
+		return s[:300] + "…"
+	}
+	return s
+}

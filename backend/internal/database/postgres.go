@@ -111,6 +111,20 @@ func (db *PostgresDB) BatchInsertWords(ctx context.Context, words []WordEntry) e
 	return tx.Commit(ctx)
 }
 
+// ResetEnrichment clears all enrichment output, returning the number of rows
+// reset. Used to restart the enrichment pipeline from scratch.
+func (db *PostgresDB) ResetEnrichment(ctx context.Context) (int64, error) {
+	tag, err := db.Pool.Exec(ctx, `
+		UPDATE words
+		SET origin_story = NULL, enriched_senses = NULL, data_enriched = FALSE
+		WHERE data_enriched = TRUE OR enriched_senses IS NOT NULL OR origin_story IS NOT NULL
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reset enrichment: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 func (db *PostgresDB) GetWord(ctx context.Context, word string) (*WordEntry, error) {
 	query := `
 		SELECT word, frequency, etymologies, senses, synonyms, antonyms

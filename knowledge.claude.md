@@ -44,6 +44,32 @@ Output: timestamped CSV (`enriched_YYYY-MM-DDTHH-MM-SS.csv`), one row per defini
 
 ---
 
+### Backend Migration — Gemini/Gemma → NVIDIA NIM Llama 3.3 70B (2026-05-27)
+
+The Gemma 4 31B path (via `google.golang.org/genai`) was abandoned after repeated failures: `ThinkingConfig` rejection, markdown-fenced JSON, and recurring parse errors. Enrichment now runs on **NVIDIA NIM `meta/llama-3.3-70b-instruct`** via a plain `net/http` client (no SDK). The `google.golang.org/genai` dependency was removed.
+
+| Item | Value |
+|------|-------|
+| Endpoint | `POST https://integrate.api.nvidia.com/v1/chat/completions` (OpenAI-compatible) |
+| Auth | `Authorization: Bearer $NVIDIA_API_KEY` (key in `backend/.env`) |
+| Model ID | `meta/llama-3.3-70b-instruct` |
+| Context window | 128K tokens, **shared** input + output |
+| Sampling used | temp=0.5, top_p=0.9 |
+| `max_tokens` | **16,384** — must be set explicitly or responses truncate (`finish_reason: "length"`) |
+| Rate limit | 40 RPM (user tier); **no documented RPD** → `DailyMax = 0` (unlimited) |
+
+**Client + structured output (2026-05-27):** Calls go through the **`github.com/sashabaranov/go-openai`** SDK (`DefaultConfig` + `cfg.BaseURL = integrate.api.nvidia.com/v1` + `NewClientWithConfig`), using the standard OpenAI **`response_format: {type: json_schema}}`** path — NVIDIA NIM (vLLM engine) supports it. Schema is built with `github.com/sashabaranov/go-openai/jsonschema` (`Definition.MarshalJSON` is a **pointer receiver** → the `Schema` field needs `*jsonschema.Definition`).
+
+**Object root is mandatory.** Per the [vLLM structured-outputs docs](https://docs.vllm.ai/en/stable/features/structured_outputs/), guided decoding enforces the schema, but the root must be an **object** — a top-level array root is *not* reliably enforced, which let Llama 3.3 70B drift to returning `definitions` as bare strings (→ `cannot unmarshal string into …EnrichedDefinition`). Fix: wrap results as `{ "entries": [ <entry> ] }` and parse into `struct{ Entries []EnrichedWordEntry }`. All objects set every property `required` + `additionalProperties:false`, `Strict: true`.
+
+vLLM also recommends restating the schema/field shapes **in the prompt** even with guided decoding — [prompt.go](backend/internal/enrich/prompt.go) spells out that each `definitions` element is an object `{definition, examples}` with an inline example. A tolerant `EnrichedDefinition.UnmarshalJSON` (string → `{definition, examples:nil}`) plus `jsonrepair.RepairJSON` remain as cheap backstops.
+
+**Batch sizing:** With a 128K shared context, the binding constraint is **output reliability** (a 70B model emitting one huge structured array drifts/truncates), not input space. Chosen: adaptive **30,000-char input budget** (~8.5K tokens) → ~30–45 typical words/batch (1–5 for the heavy high-frequency head); 10 workers under a 40 RPM limiter. ~3,000–4,000 requests, ≈75–100 min for all 128K words in one run.
+
+The Gemma 4 31B specs below are retained for historical reference.
+
+---
+
 ### Model — Gemma 4 31B Verified Specs (2026-05-26)
 
 Verified against: [Google model card](https://ai.google.dev/gemma/docs/core/model_card_4), [Ollama](https://ollama.com/library/gemma4:31b), [HuggingFace](https://huggingface.co/google/gemma-4-31B).
@@ -57,7 +83,7 @@ Verified against: [Google model card](https://ai.google.dev/gemma/docs/core/mode
 | Sliding window (local attn) | 1,024 tokens | Interleaved with full global attention layers |
 | Modalities | Text + Image → Text | Audio only on E2B/E4B; 31B has no audio |
 | Training data cutoff | January 2025 | Post-cutoff `fun_fact` claims will be hallucinated |
-| Reasoning mode | Optional `<|think|>` token | **Must be disabled for JSON generation** — thinking tokens precede output and break `json.Unmarshal` |
+| Reasoning mode | Not exposed via Gemini API | **Do not set `ThinkingConfig` at all** — the API returns `400 INVALID_ARGUMENT: Thinking budget is not supported for this model.` Even `ThinkingBudget: 0` is rejected (verified 2026-05-26). The `<|think|>` token exists in the open-weights model but is not surfaced through Google AI Studio's endpoint. |
 | Vocabulary | 262K tokens | |
 | Recommended sampling | temp=1.0, top-p=0.95, top-k=64 | Google's own defaults from model card |
 
@@ -170,7 +196,7 @@ The practical cap is a **reliability trade-off** — very large JSON outputs are
 - **Daily quota guard** — stop gracefully at request count ≥ 1,490 (10-request buffer below 1,500 RPD)
 - **State tracking** — persist enriched word IDs immediately after each successful batch (Postgres column or flat file); resume query: `WHERE frequency > 0 AND id NOT IN (enriched_ids)`
 - **Giant-word handling** — words with `total_chars > 100,000`: batch alone, truncate etymology to 200 chars (not 600)
-- **Disable reasoning mode** — set `ThinkingConfig` to off; otherwise `<|think|>` tokens prepend the JSON and break unmarshalling
+- **Do not set `ThinkingConfig`** — Gemma 4 31B via Gemini API rejects the field entirely (`400 INVALID_ARGUMENT`); the reasoning-token concern from the open-weights model card doesn't apply through this endpoint
 - **Sampling params** — set temp=1.0, top-p=0.95, top-k=64 per Google's model card defaults
 
 #### Context timeout
@@ -185,4 +211,8 @@ Set to **30 minutes** minimum. Small batches (10 words) complete in 2–5 min. T
 | `senses` always `{}` in enriched output | `TypeObject` with no `Properties` in `ResponseSchema` gives model no guidance | Use `TypeArray` of typed `SenseGroup` items |
 | `context deadline exceeded` on API call | Prompt too large (>200KB) for context window; 10-min timeout too short | Truncate etymologies to 600 chars; use 30-min timeout; batch ≤25 words |
 | `genai.BackendGoogleAI` undefined | Constant renamed in `google.golang.org/genai` v1.x | Use `genai.BackendGeminiAPI` |
+| `400 INVALID_ARGUMENT: Thinking budget is not supported for this model` | Setting `ThinkingConfig` (even `ThinkingBudget: 0`) on Gemma 4 31B requests | Omit `ThinkingConfig` from `GenerateContentConfig` entirely |
+| `invalid character '` + "`" + `' after top-level value` on enrich response | Gemma 4 31B occasionally wraps structured-output JSON in ` ```json … ``` ` Markdown fences despite `ResponseMIMEType`/`ResponseSchema` | Run the response through `github.com/RealAlexandreAI/json-repair` (`jsonrepair.RepairJSON`) before `json.Unmarshal` — strips fences and patches other minor malformations |
+| `cannot unmarshal string into …EnrichedDefinition` (NIM/vLLM) | `response_format: json_schema` with a **top-level array root** isn't strictly enforced by vLLM guided decoding, so the model returns `definitions` as bare strings | Use an **object-rooted** schema (`{entries:[…]}`); restate field shapes in the prompt; keep a tolerant `UnmarshalJSON` backstop |
+| HTTP 429 Too Many Requests early in an enrich run | `rate.NewLimiter(..., burst)` with `burst == RPM` starts with a full bucket, so all workers fire at once — a startup surge that trips the server's rolling-window limit | Set limiter **burst = 1** for even pacing; target a few % under the stated RPM cap (38 of 40) for rolling-window headroom |
 | JSONB scan into `map[string][]T` silently works in pgx v5 | pgx v5 uses `encoding/json.Unmarshal` as fallback for JSONB → Go types | No fix needed — just document that it works without explicit type registration |
