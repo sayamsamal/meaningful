@@ -113,7 +113,8 @@ func (s *Service) EnrichOne(ctx context.Context, word string) (*EnrichedWordEntr
 		return nil, fmt.Errorf("word %q not found", word)
 	}
 
-	enriched, err := s.EnrichBatch(ctx, []database.WordEntry{*entry})
+	src := []database.WordEntry{*entry}
+	enriched, err := s.EnrichBatch(ctx, src)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +122,7 @@ func (s *Service) EnrichOne(ctx context.Context, word string) (*EnrichedWordEntr
 		return nil, fmt.Errorf("model returned no entries")
 	}
 
-	if err := s.Persist(ctx, enriched); err != nil {
+	if err := s.Persist(ctx, src, enriched); err != nil {
 		return nil, fmt.Errorf("persist: %w", err)
 	}
 	return &enriched[0], nil

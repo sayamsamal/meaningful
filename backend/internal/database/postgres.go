@@ -18,6 +18,7 @@ type Definition struct {
 type Senses map[string][]Definition
 
 type WordEntry struct {
+	ID          int      `json:"-"`
 	Word        string   `json:"word"`
 	Frequency   float64  `json:"frequency"`
 	Etymologies []string `json:"etymologies"`
@@ -127,13 +128,14 @@ func (db *PostgresDB) ResetEnrichment(ctx context.Context) (int64, error) {
 
 func (db *PostgresDB) GetWord(ctx context.Context, word string) (*WordEntry, error) {
 	query := `
-		SELECT word, frequency, etymologies, senses, synonyms, antonyms
+		SELECT id, word, frequency, etymologies, senses, synonyms, antonyms
 		FROM words
 		WHERE LOWER(word) = $1
 		LIMIT 1
 	`
 	var entry WordEntry
 	err := db.Pool.QueryRow(ctx, query, word).Scan(
+		&entry.ID,
 		&entry.Word,
 		&entry.Frequency,
 		&entry.Etymologies,

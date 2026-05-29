@@ -105,7 +105,7 @@ func (s *Service) RunPipeline(ctx context.Context, cfg PipelineConfig) error {
 					log.Printf("[worker %d] batch failed after retries (%d words): %v", id, len(batch), err)
 					continue
 				}
-				if err := s.Persist(ctx, enriched); err != nil {
+				if err := s.Persist(ctx, batch, enriched); err != nil {
 					failures.Add(1)
 					_ = bar.Clear()
 					log.Printf("[worker %d] persist failed (%d words): %v", id, len(batch), err)
@@ -200,7 +200,7 @@ func (s *Service) runFetcher(ctx context.Context, cfg PipelineConfig, requestsUs
 // frequency DESC, excluding ones already queued in this run.
 func (s *Service) fetchCandidates(ctx context.Context, limit int, exclude map[string]struct{}) ([]database.WordEntry, error) {
 	rows, err := s.DB.Pool.Query(ctx, `
-		SELECT word, frequency, etymologies, senses, synonyms, antonyms
+		SELECT id, word, frequency, etymologies, senses, synonyms, antonyms
 		FROM words
 		WHERE frequency > 0 AND NOT data_enriched
 		ORDER BY frequency DESC
@@ -214,7 +214,7 @@ func (s *Service) fetchCandidates(ctx context.Context, limit int, exclude map[st
 	var out []database.WordEntry
 	for rows.Next() {
 		var e database.WordEntry
-		if err := rows.Scan(&e.Word, &e.Frequency, &e.Etymologies, &e.Senses, &e.Synonyms, &e.Antonyms); err != nil {
+		if err := rows.Scan(&e.ID, &e.Word, &e.Frequency, &e.Etymologies, &e.Senses, &e.Synonyms, &e.Antonyms); err != nil {
 			return nil, err
 		}
 		if _, skip := exclude[e.Word]; skip {
