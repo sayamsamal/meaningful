@@ -18,7 +18,7 @@ import (
 const (
 	modelName     = "meta/llama-3.3-70b-instruct"
 	nvidiaBaseURL = "https://integrate.api.nvidia.com/v1"
-	maxOutputTok  = 16384
+	maxOutputTok  = 32768
 )
 
 type Service struct {

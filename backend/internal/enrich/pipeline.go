@@ -28,10 +28,10 @@ type PipelineConfig struct {
 
 func DefaultConfig() PipelineConfig {
 	return PipelineConfig{
-		Workers:        10,
-		RPM:            38,
+		Workers:        5,
+		RPM:            30,
 		DailyMax:       0,
-		CharBudget:     30_000,
+		CharBudget:     60_000,
 		FetchLimit:     500,
 		RequestTimeout: 10 * time.Minute,
 		MaxRetries:     5,
