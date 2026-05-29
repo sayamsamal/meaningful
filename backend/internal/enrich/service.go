@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"strings"
+	"time"
 
 	jsonrepair "github.com/RealAlexandreAI/json-repair"
 	openai "github.com/sashabaranov/go-openai"
@@ -19,7 +20,13 @@ const (
 	modelName     = "meta/llama-3.3-70b-instruct"
 	nvidiaBaseURL = "https://integrate.api.nvidia.com/v1"
 	maxOutputTok  = 32768
+	// streamIdleTimeout is the max gap with zero tokens before the stream is
+	// treated as stalled. Covers time-to-first-token for a large prompt on a
+	// loaded free tier plus any inter-token gap; a 2-min silence is a real stall.
+	streamIdleTimeout = 120 * time.Second
 )
+
+var errStreamIdle = errors.New("stream stalled: no tokens received within idle window")
 
 type Service struct {
 	Client *openai.Client
@@ -61,10 +68,38 @@ func (s *Service) EnrichBatch(ctx context.Context, words []database.WordEntry) (
 		return nil, fmt.Errorf("marshal input: %w", err)
 	}
 
-	// Stream the response. The hosted NIM gateway 504s if a long (verbose,
-	// nested) generation exceeds its response window; streaming keeps the
-	// connection alive token-by-token, so the ctx deadline becomes the real bound.
-	stream, err := s.Client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
+	// Stream the response with a per-chunk idle timeout. The hosted NIM gateway
+	// 504s if a long generation exceeds its response window; streaming keeps the
+	// connection alive token-by-token. A fixed total deadline would kill healthy
+	// but slow long generations, so instead a watchdog cancels only when the
+	// stream produces nothing for streamIdleTimeout — a real stall.
+	streamCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	// The watchdog owns the timer entirely (only it calls Stop/Reset/reads t.C),
+	// avoiding the classic time.Reset race. Started before the stream opens so
+	// connection setup and time-to-first-token are covered too.
+	progress := make(chan struct{}, 1)
+	go func() {
+		t := time.NewTimer(streamIdleTimeout)
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				cancel(errStreamIdle)
+				return
+			case <-progress:
+				if !t.Stop() {
+					<-t.C
+				}
+				t.Reset(streamIdleTimeout)
+			case <-streamCtx.Done():
+				return
+			}
+		}
+	}()
+
+	stream, err := s.Client.CreateChatCompletionStream(streamCtx, openai.ChatCompletionRequest{
 		Model: modelName,
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
@@ -83,6 +118,9 @@ func (s *Service) EnrichBatch(ctx context.Context, words []database.WordEntry) (
 		},
 	})
 	if err != nil {
+		if cause := context.Cause(streamCtx); errors.Is(cause, errStreamIdle) {
+			return nil, cause
+		}
 		return nil, fmt.Errorf("create chat completion stream: %w", err)
 	}
 	defer stream.Close()
@@ -95,7 +133,15 @@ func (s *Service) EnrichBatch(ctx context.Context, words []database.WordEntry) (
 			break
 		}
 		if err != nil {
+			if cause := context.Cause(streamCtx); errors.Is(cause, errStreamIdle) {
+				return nil, cause
+			}
 			return nil, fmt.Errorf("stream recv: %w", err)
+		}
+		// Non-blocking progress signal; coalesced via the cap-1 buffer.
+		select {
+		case progress <- struct{}{}:
+		default:
 		}
 		if len(chunk.Choices) == 0 {
 			continue

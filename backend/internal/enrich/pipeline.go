@@ -17,13 +17,12 @@ import (
 )
 
 type PipelineConfig struct {
-	Workers        int           // parallel API calls (default 10)
-	RPM            int           // rate ceiling (default 40)
-	DailyMax       int           // request cap per run; 0 = unlimited (NVIDIA tier has no RPD)
-	CharBudget     int           // adaptive batch size in raw input chars (default 30_000)
-	FetchLimit     int           // SQL LIMIT for next-batch query (default 500)
-	RequestTimeout time.Duration // per-batch API call timeout (default 10 min)
-	MaxRetries     int           // retries per batch on transient errors (default 5)
+	Workers    int // parallel API calls (default 5)
+	RPM        int // rate ceiling (default 30)
+	DailyMax   int // request cap per run; 0 = unlimited (NVIDIA tier has no RPD)
+	CharBudget int // adaptive batch size in raw input chars (default 60_000)
+	FetchLimit int // SQL LIMIT for next-batch query (default 500)
+	MaxRetries int // retries per batch on transient errors (default 5)
 }
 
 func DefaultConfig() PipelineConfig {
@@ -33,7 +32,6 @@ func DefaultConfig() PipelineConfig {
 		DailyMax:       0,
 		CharBudget:     60_000,
 		FetchLimit:     500,
-		RequestTimeout: 10 * time.Minute,
 		MaxRetries:     5,
 	}
 }
@@ -243,9 +241,9 @@ func (s *Service) enrichWithRetry(ctx context.Context, limiter *rate.Limiter, re
 		}
 		requestsUsed.Add(1)
 
-		callCtx, cancel := context.WithTimeout(ctx, cfg.RequestTimeout)
-		enriched, err := s.EnrichBatch(callCtx, batch)
-		cancel()
+		// No total deadline here — EnrichBatch enforces a per-chunk idle timeout
+		// internally, so healthy-but-slow long generations aren't killed.
+		enriched, err := s.EnrichBatch(ctx, batch)
 		if err == nil {
 			return enriched, nil
 		}
