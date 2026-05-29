@@ -93,12 +93,7 @@ func (s *Service) RunPipeline(ctx context.Context, cfg PipelineConfig) error {
 		go func(id int) {
 			defer workersWG.Done()
 			for batch := range batchCh {
-				if err := limiter.Wait(ctx); err != nil {
-					return
-				}
-
-				requestsUsed.Add(1)
-				enriched, err := s.enrichWithRetry(ctx, batch, cfg)
+				enriched, err := s.enrichWithRetry(ctx, limiter, &requestsUsed, batch, cfg)
 				if err != nil {
 					failures.Add(1)
 					_ = bar.Clear()
@@ -236,11 +231,18 @@ func (s *Service) countRemaining(ctx context.Context) (int, error) {
 	return n, err
 }
 
-// enrichWithRetry retries on transient errors with exponential backoff.
-func (s *Service) enrichWithRetry(ctx context.Context, batch []database.WordEntry, cfg PipelineConfig) ([]EnrichedWordEntry, error) {
+// enrichWithRetry retries on transient errors with exponential backoff. Every
+// attempt (initial and retries) acquires a rate-limiter token, so retries can't
+// push the request rate above the configured RPM.
+func (s *Service) enrichWithRetry(ctx context.Context, limiter *rate.Limiter, requestsUsed *atomic.Int64, batch []database.WordEntry, cfg PipelineConfig) ([]EnrichedWordEntry, error) {
 	var lastErr error
 	backoff := 2 * time.Second
 	for attempt := 0; attempt <= cfg.MaxRetries; attempt++ {
+		if err := limiter.Wait(ctx); err != nil {
+			return nil, err
+		}
+		requestsUsed.Add(1)
+
 		callCtx, cancel := context.WithTimeout(ctx, cfg.RequestTimeout)
 		enriched, err := s.EnrichBatch(callCtx, batch)
 		cancel()

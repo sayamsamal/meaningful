@@ -3,8 +3,11 @@ package enrich
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
+	"strings"
 
 	jsonrepair "github.com/RealAlexandreAI/json-repair"
 	openai "github.com/sashabaranov/go-openai"
@@ -58,7 +61,10 @@ func (s *Service) EnrichBatch(ctx context.Context, words []database.WordEntry) (
 		return nil, fmt.Errorf("marshal input: %w", err)
 	}
 
-	resp, err := s.Client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+	// Stream the response. The hosted NIM gateway 504s if a long (verbose,
+	// nested) generation exceeds its response window; streaming keeps the
+	// connection alive token-by-token, so the ctx deadline becomes the real bound.
+	stream, err := s.Client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
 		Model: modelName,
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
@@ -77,16 +83,36 @@ func (s *Service) EnrichBatch(ctx context.Context, words []database.WordEntry) (
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create chat completion: %w", err)
+		return nil, fmt.Errorf("create chat completion stream: %w", err)
 	}
-	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("no choices in response")
-	}
-	if resp.Choices[0].FinishReason == openai.FinishReasonLength {
-		log.Printf("warning: response truncated (finish_reason=length) for %d-word batch — consider a smaller batch or higher max_tokens", len(words))
+	defer stream.Close()
+
+	var sb strings.Builder
+	var finishReason openai.FinishReason
+	for {
+		chunk, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("stream recv: %w", err)
+		}
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+		sb.WriteString(chunk.Choices[0].Delta.Content)
+		if fr := chunk.Choices[0].FinishReason; fr != "" {
+			finishReason = fr
+		}
 	}
 
-	content := resp.Choices[0].Message.Content
+	content := sb.String()
+	if content == "" {
+		return nil, fmt.Errorf("empty streamed response")
+	}
+	if finishReason == openai.FinishReasonLength {
+		log.Printf("warning: response truncated (finish_reason=length) for %d-word batch — consider a smaller batch or higher max_tokens", len(words))
+	}
 
 	// json-repair patches any minor malformations before strict unmarshalling.
 	repaired, err := jsonrepair.RepairJSON(content)
