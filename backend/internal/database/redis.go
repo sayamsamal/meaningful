@@ -22,11 +22,22 @@ func ConnectRedis(connString string) (*RedisDB, error) {
 
 	client := redis.NewClient(opt)
 	ctx := context.Background()
-	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("failed to ping redis: %w", err)
+
+	// On startup, redis-stack may still be loading a persisted RDB dataset
+	// into memory and reject commands with a LOADING error. Retry instead
+	// of failing immediately so the backend doesn't crash-loop on cold start.
+	const maxAttempts = 30
+	var pingErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		pingErr = client.Ping(ctx).Err()
+		if pingErr == nil {
+			return &RedisDB{Client: client}, nil
+		}
+		log.Printf("Redis not ready yet (attempt %d/%d): %v", attempt, maxAttempts, pingErr)
+		time.Sleep(1 * time.Second)
 	}
 
-	return &RedisDB{Client: client}, nil
+	return nil, fmt.Errorf("failed to ping redis after %d attempts: %w", maxAttempts, pingErr)
 }
 
 func (db *RedisDB) Close() {
