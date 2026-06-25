@@ -38,9 +38,10 @@ func (s *Server) HandleGetWord(w http.ResponseWriter, r *http.Request) {
 
 	// Safe character replacement instead of unescaping.
 	// This maps URL underscores back to database spaces.
+	// Casing is preserved so the lookup can distinguish case-collided
+	// entries (e.g. "of" the preposition vs "OF" the initialism).
 	word = strings.ReplaceAll(word, "_", " ")
-	word = strings.ToLower(word)
-	
+
 	ctx := r.Context()
 
 	// 1. Try Cache

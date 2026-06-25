@@ -135,7 +135,10 @@ func (db *PostgresDB) GetWord(ctx context.Context, word string) (*WordEntry, err
 		SELECT id, word, frequency, etymologies, senses, synonyms, antonyms,
 		       COALESCE(origin_story, ''), enriched_senses, data_enriched
 		FROM words
-		WHERE LOWER(word) = $1
+		WHERE LOWER(word) = LOWER($1)
+		ORDER BY (word = $1) DESC,          -- exact-case match wins
+		         frequency DESC NULLS LAST, -- else most common casing
+		         word                       -- stable, deterministic tiebreak
 		LIMIT 1
 	`
 	var entry WordEntry
@@ -173,10 +176,12 @@ func (db *PostgresDB) GetMultipleWords(ctx context.Context, words []string) ([]W
 	}
 
 	query := `
-		SELECT word, frequency, etymologies, senses, synonyms, antonyms,
+		SELECT DISTINCT ON (LOWER(word))
+		       word, frequency, etymologies, senses, synonyms, antonyms,
 		       COALESCE(origin_story, ''), enriched_senses, data_enriched
 		FROM words
 		WHERE LOWER(word) = ANY($1)
+		ORDER BY LOWER(word), frequency DESC NULLS LAST, word
 	`
 	rows, err := db.Pool.Query(ctx, query, lowerWords)
 	if err != nil {
