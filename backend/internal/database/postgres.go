@@ -164,6 +164,21 @@ func (db *PostgresDB) GetWord(ctx context.Context, word string) (*WordEntry, err
 	return &entry, nil
 }
 
+// ExactWordExists reports whether a row exists whose word matches `word`
+// case-sensitively (uses idx_words_word). Used to surface the exact-case
+// suggestion at the top of autocomplete (e.g. "OF" vs "of").
+func (db *PostgresDB) ExactWordExists(ctx context.Context, word string) (bool, error) {
+	var w string
+	err := db.Pool.QueryRow(ctx, `SELECT word FROM words WHERE word = $1 LIMIT 1`, word).Scan(&w)
+	if err == pgx.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed exact word lookup: %w", err)
+	}
+	return true, nil
+}
+
 func (db *PostgresDB) GetMultipleWords(ctx context.Context, words []string) ([]WordEntry, error) {
 	if len(words) == 0 {
 		return []WordEntry{}, nil

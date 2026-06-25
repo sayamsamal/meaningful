@@ -116,11 +116,12 @@ func (s *Server) HandleAutocomplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query = strings.ToLower(strings.TrimSpace(query))
+	raw := strings.TrimSpace(query) // preserve typed casing for the exact-case boost
+	prefix := strings.ToLower(raw)  // FT.SUGGET is case-insensitive anyway
 	ctx := r.Context()
 
 	// 10 results is usually enough for autocomplete
-	suggestions, err := s.Redis.GetAutocomplete(ctx, query, 10)
+	suggestions, err := s.Redis.GetAutocomplete(ctx, prefix, 10)
 	if err != nil {
 		fmt.Printf("Autocomplete error: %v\n", err)
 		sendError(w, http.StatusInternalServerError, "failed to fetch suggestions")
@@ -130,6 +131,27 @@ func (s *Server) HandleAutocomplete(w http.ResponseWriter, r *http.Request) {
 	// Ensure empty array instead of null
 	if suggestions == nil {
 		suggestions = []string{}
+	}
+
+	// Case-sensitive boost: if the typed text is itself a stored word with this
+	// exact casing (e.g. "OF"), make it the first result. FT.SUGGET ranks purely
+	// by frequency, so a low-frequency exact-case variant is otherwise buried far
+	// past the top 10. Skip the Postgres hit on the hot path where the top
+	// frequency-ranked result already matches the typed text (e.g. "of").
+	if len(suggestions) == 0 || suggestions[0] != raw {
+		if exists, err := s.PG.ExactWordExists(ctx, raw); err == nil && exists {
+			out := make([]string, 0, len(suggestions)+1)
+			out = append(out, raw)
+			for _, sug := range suggestions {
+				if sug != raw {
+					out = append(out, sug)
+				}
+			}
+			if len(out) > 10 {
+				out = out[:10]
+			}
+			suggestions = out
+		}
 	}
 
 	// We shouldn't heavily cache autocomplete at the edge to avoid bursting, 
