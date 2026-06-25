@@ -59,44 +59,107 @@ export default function WordCard(props: WordCardProps) {
             <div class="word-card">
               <header class="word-card__header">
                 <h1 class="word-card__title">{entry().word}</h1>
-                <Show when={entry().frequency > 0}>
-                  <span class="word-card__frequency">
-                    Zipf: {entry().frequency.toFixed(2)}
-                  </span>
-                </Show>
+                <span class="word-card__header-badges">
+                  <Show when={entry().data_enriched}>
+                    <span class="word-card__enriched-badge">Enriched</span>
+                  </Show>
+                  <Show when={entry().frequency > 0}>
+                    <span class="word-card__frequency">
+                      Zipf: {entry().frequency.toFixed(2)}
+                    </span>
+                  </Show>
+                </span>
               </header>
 
-              <Show when={entry().etymologies?.length}>
-                <p class="word-card__etymology">{entry().etymologies![0]}</p>
+              <Show
+                when={entry().data_enriched && entry().origin_story}
+                fallback={
+                  <Show when={entry().etymologies?.length}>
+                    <p class="word-card__etymology">
+                      {entry().etymologies![0]}
+                    </p>
+                  </Show>
+                }
+              >
+                <p class="word-card__etymology">{entry().origin_story}</p>
               </Show>
 
-              <div class="word-card__senses-container">
-                <For each={Object.keys(entry().senses)}>
-                  {(pos) => (
-                    <section class="word-card__pos-section">
-                      <h2 class="word-card__pos-title">{pos}</h2>
-                      <ol class="word-card__definition-list">
-                        <For each={entry().senses[pos]}>
-                          {(def) => (
-                            <li class="word-card__definition-item">
-                              <span>{def.definition}</span>
-                              <Show when={def.examples?.length}>
-                                <For each={def.examples!}>
-                                  {(example) => (
-                                    <span class="word-card__example">
-                                      "{example}"
-                                    </span>
-                                  )}
-                                </For>
-                              </Show>
-                            </li>
-                          )}
-                        </For>
-                      </ol>
-                    </section>
-                  )}
-                </For>
-              </div>
+              <Show
+                when={entry().data_enriched && entry().enriched_senses?.length}
+                fallback={
+                  <div class="word-card__senses-container">
+                    <For each={Object.keys(entry().senses)}>
+                      {(pos) => (
+                        <section class="word-card__pos-section">
+                          <h2 class="word-card__pos-title">{pos}</h2>
+                          <ol class="word-card__definition-list">
+                            <For each={entry().senses[pos]}>
+                              {(def) => (
+                                <li class="word-card__definition-item">
+                                  <span>{def.definition}</span>
+                                  <Show when={def.examples?.length}>
+                                    <For each={def.examples!}>
+                                      {(example) => (
+                                        <span class="word-card__example">
+                                          "{example}"
+                                        </span>
+                                      )}
+                                    </For>
+                                  </Show>
+                                </li>
+                              )}
+                            </For>
+                          </ol>
+                        </section>
+                      )}
+                    </For>
+                  </div>
+                }
+              >
+                <div class="word-card__senses-container">
+                  <For each={entry().enriched_senses}>
+                    {(group) => (
+                      <section class="word-card__pos-section">
+                        <h2 class="word-card__pos-title">{group.pos}</h2>
+                        <ol class="word-card__definition-list">
+                          <For each={group.senses}>
+                            {(def) => (
+                              <li class="word-card__definition-item">
+                                <span>{def.sense}</span>
+                                <Show when={def.examples?.length}>
+                                  <For each={def.examples!}>
+                                    {(example) => (
+                                      <span class="word-card__example">
+                                        "{example}"
+                                      </span>
+                                    )}
+                                  </For>
+                                </Show>
+                                <Show when={def.subsenses?.length}>
+                                  <ol class="word-card__subsense-list">
+                                    <For each={def.subsenses!}>
+                                      {(sub) => (
+                                        <li class="word-card__subsense-item">
+                                          <span>{sub.sense}</span>
+                                          <Show when={sub.example}>
+                                            <span class="word-card__example">
+                                              "{sub.example}"
+                                            </span>
+                                          </Show>
+                                        </li>
+                                      )}
+                                    </For>
+                                  </ol>
+                                </Show>
+                              </li>
+                            )}
+                          </For>
+                        </ol>
+                      </section>
+                    )}
+                  </For>
+                </div>
+              </Show>
             </div>
           )}
         </Match>
