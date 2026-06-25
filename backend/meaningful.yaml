@@ -99,7 +99,15 @@ components:
           type: array
           items:
             type: string
-            
+        data_enriched:
+          type: boolean
+        origin_story:
+          type: string
+        enriched_senses:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnrichedSenseGroup'
+
     Definition:
       type: object
       properties:
@@ -109,3 +117,35 @@ components:
           type: array
           items:
             type: string
+
+    EnrichedSenseGroup:
+      type: object
+      properties:
+        pos:
+          type: string
+        senses:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnrichedDefinition'
+
+    EnrichedDefinition:
+      type: object
+      properties:
+        sense:
+          type: string
+        examples:
+          type: array
+          items:
+            type: string
+        subsenses:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubDefinition'
+
+    SubDefinition:
+      type: object
+      properties:
+        sense:
+          type: string
+        example:
+          type: string

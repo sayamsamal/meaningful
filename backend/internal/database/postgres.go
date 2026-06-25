@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -18,13 +19,16 @@ type Definition struct {
 type Senses map[string][]Definition
 
 type WordEntry struct {
-	ID          int      `json:"-"`
-	Word        string   `json:"word"`
-	Frequency   float64  `json:"frequency"`
-	Etymologies []string `json:"etymologies"`
-	Senses      Senses   `json:"senses"`
-	Synonyms    []string `json:"synonyms"`
-	Antonyms    []string `json:"antonyms"`
+	ID             int             `json:"-"`
+	Word           string          `json:"word"`
+	Frequency      float64         `json:"frequency"`
+	Etymologies    []string        `json:"etymologies"`
+	Senses         Senses          `json:"senses"`
+	Synonyms       []string        `json:"synonyms"`
+	Antonyms       []string        `json:"antonyms"`
+	OriginStory    string          `json:"origin_story,omitempty"`
+	EnrichedSenses json.RawMessage `json:"enriched_senses,omitempty"`
+	DataEnriched   bool            `json:"data_enriched"`
 }
 
 type PostgresDB struct {
@@ -128,7 +132,8 @@ func (db *PostgresDB) ResetEnrichment(ctx context.Context) (int64, error) {
 
 func (db *PostgresDB) GetWord(ctx context.Context, word string) (*WordEntry, error) {
 	query := `
-		SELECT id, word, frequency, etymologies, senses, synonyms, antonyms
+		SELECT id, word, frequency, etymologies, senses, synonyms, antonyms,
+		       COALESCE(origin_story, ''), enriched_senses, data_enriched
 		FROM words
 		WHERE LOWER(word) = $1
 		LIMIT 1
@@ -142,6 +147,9 @@ func (db *PostgresDB) GetWord(ctx context.Context, word string) (*WordEntry, err
 		&entry.Senses,
 		&entry.Synonyms,
 		&entry.Antonyms,
+		&entry.OriginStory,
+		&entry.EnrichedSenses,
+		&entry.DataEnriched,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -165,7 +173,8 @@ func (db *PostgresDB) GetMultipleWords(ctx context.Context, words []string) ([]W
 	}
 
 	query := `
-		SELECT word, frequency, etymologies, senses, synonyms, antonyms
+		SELECT word, frequency, etymologies, senses, synonyms, antonyms,
+		       COALESCE(origin_story, ''), enriched_senses, data_enriched
 		FROM words
 		WHERE LOWER(word) = ANY($1)
 	`
@@ -185,6 +194,9 @@ func (db *PostgresDB) GetMultipleWords(ctx context.Context, words []string) ([]W
 			&entry.Senses,
 			&entry.Synonyms,
 			&entry.Antonyms,
+			&entry.OriginStory,
+			&entry.EnrichedSenses,
+			&entry.DataEnriched,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan word row: %w", err)
 		}

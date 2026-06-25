@@ -142,10 +142,26 @@ export interface components {
             };
             synonyms?: string[];
             antonyms?: string[];
+            data_enriched?: boolean;
+            origin_story?: string;
+            enriched_senses?: components["schemas"]["EnrichedSenseGroup"][];
         };
         Definition: {
             definition?: string;
             examples?: string[];
+        };
+        EnrichedSenseGroup: {
+            pos?: string;
+            senses?: components["schemas"]["EnrichedDefinition"][];
+        };
+        EnrichedDefinition: {
+            sense?: string;
+            examples?: string[];
+            subsenses?: components["schemas"]["SubDefinition"][];
+        };
+        SubDefinition: {
+            sense?: string;
+            example?: string;
         };
     };
     responses: never;

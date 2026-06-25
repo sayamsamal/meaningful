@@ -79,6 +79,23 @@ The Gemma 4 31B specs below are retained for historical reference.
 
 ---
 
+### Enrichment fields exposed via API + rendered in frontend (2026-06-25)
+
+`database.WordEntry` now carries `OriginStory string`, `EnrichedSenses json.RawMessage`, `DataEnriched bool` (`json:"...,omitempty"` on the first two; the bool always serializes) alongside the original six fields. Both `GetWord` and `GetMultipleWords` select `COALESCE(origin_story, '')`, `enriched_senses`, `data_enriched` in addition to the original columns. `meaningful.yaml` gained matching `EnrichedSenseGroup`/`EnrichedDefinition`/`SubDefinition` schemas plus the three new `WordEntry` properties — regenerate frontend types with `pnpm run gen-types` after touching this spec.
+
+`EnrichedSenses` is typed `json.RawMessage`, not the `enrich` package's `[]SenseGroup`: `enrich` already imports `database`, so `database` importing back would cycle. The OpenAPI spec is the frontend's source of typing truth for this field, not the Go struct.
+
+Frontend (`WordCard.tsx`): when `data_enriched = true`, `origin_story` replaces `etymologies[0]` and `enriched_senses` replaces the raw `senses` map (not shown alongside — enrichment is treated as a full upgrade of the raw data, not an addition to it). A small badge (`.word-card__enriched-badge`) renders next to the title. Un-enriched words render through the original raw-data path unchanged.
+
+**Gotcha:** `HandleGetWord`'s 24h Redis read-through cache (`cache:word:<word>`) stores whatever shape was cached at write time. A word cached before a `WordEntry` serialization change (or before its row was enriched) keeps serving the old shape for up to 24h.
+
+To invalidate it, scope the delete to the cache keys only — **do not run `redis-cli FLUSHALL`**: the same Redis instance also holds the `dict_autocomplete` RediSearch suggestion trie (`FT.SUGADD`), which `FLUSHALL` wipes too, taking down the search bar's autocomplete with no error (just empty results) until the dictionary is rebuilt. Rebuilding it requires either a full ETL re-run (slow, and `BatchInsertWords`'s `CopyFrom` has no upsert/conflict handling — it would duplicate every row in `words`) or a standalone read of `(word, frequency)` from Postgres piped into `RedisDB.BatchInsertAutocomplete`. Scoped invalidation:
+```
+docker compose exec redis redis-cli --scan --pattern 'cache:word:*' | xargs -r docker compose exec -T redis redis-cli UNLINK
+```
+
+---
+
 ### Model — Gemma 4 31B Verified Specs (2026-05-26)
 
 Verified against: [Google model card](https://ai.google.dev/gemma/docs/core/model_card_4), [Ollama](https://ollama.com/library/gemma4:31b), [HuggingFace](https://huggingface.co/google/gemma-4-31B).
