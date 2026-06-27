@@ -1,6 +1,7 @@
 dist
 .wrangler
 .output
+.nitro
 .vercel
 .netlify
 .vinxi
@@ -12,6 +13,7 @@ app.config.timestamp_*.js
 
 # dependencies
 /node_modules
+.pnpm-store
 
 # IDEs and editors
 /.idea

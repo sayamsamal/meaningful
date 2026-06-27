@@ -1,4 +1,13 @@
-/* playfair-display-700 - cyrillic_latin_latin-ext */
+/* playfair-display-400 - latin */
+@font-face {
+  font-display: swap;
+  font-family: 'Playfair Display';
+  font-style: normal;
+  font-weight: 400;
+  src: url('/fonts/playfair-display-regular.woff2') format('woff2');
+}
+
+/* playfair-display-700 - latin */
 @font-face {
   font-display: swap;
   font-family: 'Playfair Display';
@@ -7,7 +16,7 @@
   src: url('/fonts/playfair-display.woff2') format('woff2');
 }
 
-/* inter-regular - cyrillic_cyrillic-ext_greek_greek-ext_latin_latin-ext */
+/* inter-regular - latin */
 @font-face {
   font-display: swap;
   font-family: 'Inter';
@@ -16,7 +25,16 @@
   src: url('/fonts/inter.woff2') format('woff2');
 }
 
-/* inter-italic - cyrillic_cyrillic-ext_greek_greek-ext_latin_latin-ext */
+/* inter-semibold - latin */
+@font-face {
+  font-display: swap;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  src: url('/fonts/inter-semibold.woff2') format('woff2');
+}
+
+/* inter-italic - latin */
 @font-face {
   font-display: swap;
   font-family: 'Inter';
@@ -25,23 +43,25 @@
   src: url('/fonts/inter-italic.woff2') format('woff2');
 }
 
-/* Reset and Variables */
+/* Theme tokens — the entire palette is two values that invert between modes. */
 :root {
-  --color-bg-primary: #0f172a;
-  --color-bg-secondary: #1e293b;
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-accent: #38bdf8;
-  --color-accent-hover: #0284c7;
-  --color-border: #334155;
-  --color-glass-bg: rgba(30, 41, 59, 0.7);
-  --color-glass-border: rgba(255, 255, 255, 0.1);
+  --color-background: #ece9e3;
+  --color-text: #282a2a;
 
   --font-headword: 'Playfair Display', serif;
   --font-body: 'Inter', sans-serif;
 
   --transition-fast: 0.15s ease;
   --transition-normal: 0.3s ease;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --color-background: #282a2a;
+  --color-text: #ece9e3;
+
+  color-scheme: dark;
 }
 
 * {
@@ -51,18 +71,20 @@
 }
 
 body {
-  font-family: var(--font-primary);
-  background-color: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  background-color: var(--color-background);
+  color: var(--color-text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  transition: background-color var(--transition-normal),
+    color var(--transition-normal);
 }
 
 /* Global Layout Grid */
 .app-layout {
   display: grid;
-  grid-template-rows: 100px 1fr 60px;
-  grid-template-columns: 1fr minmax(auto, 800px) 1fr;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 1fr minmax(auto, 900px) 1fr;
   grid-template-areas:
     "header header header"
     ". main ."
@@ -75,18 +97,34 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 2rem;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-glass-bg);
-  backdrop-filter: blur(12px);
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.app-layout__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  color: var(--color-text);
+  transition: opacity var(--transition-fast);
+}
+
+.app-layout__logo:hover {
+  opacity: 0.7;
+}
+
+.app-layout__logo svg {
+  width: 48px;
+  height: 48px;
 }
 
 .app-layout__main {
   grid-area: main;
-  padding: 3rem 1rem;
+  width: 100%;
+  padding: 1rem 2rem 3rem;
 }
 
 .app-layout__footer {
@@ -94,60 +132,156 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
+  padding: 1.5rem;
+  color: var(--color-text);
+  opacity: 0.8;
+  font-size: 1rem;
+}
+
+/* Theme Toggle */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.theme-toggle:hover {
+  opacity: 0.7;
+}
+
+.theme-toggle svg {
+  width: 48px;
+  height: 48px;
+}
+
+/* The active theme is set on :root[data-theme] before first paint, so CSS picks
+   the correct icon with no JS, no flash, and no hydration mismatch. */
+.theme-toggle__icon--sun {
+  display: none;
+}
+
+.theme-toggle__icon--moon {
+  display: block;
+}
+
+:root[data-theme="dark"] .theme-toggle__icon--moon {
+  display: none;
+}
+
+:root[data-theme="dark"] .theme-toggle__icon--sun {
+  display: block;
 }
 
 /* Search Bar Component */
 .search-bar {
   position: relative;
   width: 100%;
-  max-width: 600px;
+  max-width: 576px;
+}
+
+.search-bar__field {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  background: transparent;
+  border: 2px solid var(--color-text);
+  border-radius: 15px;
+  overflow: hidden;
+  transition: box-shadow var(--transition-fast);
+}
+
+.search-bar__field:focus-within {
+  box-shadow: 0 0 0 3px rgba(40, 42, 42, 0.12);
+}
+
+:root[data-theme="dark"] .search-bar__field:focus-within {
+  box-shadow: 0 0 0 3px rgba(236, 233, 227, 0.15);
+}
+
+.search-bar__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  color: var(--color-text);
+}
+
+.search-bar__icon svg {
+  width: 24px;
+  height: 24px;
 }
 
 .search-bar__input {
-  width: 100%;
-  padding: 1rem 1.5rem;
-  font-size: 1.125rem;
-  background-color: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: 9999px;
-  color: var(--color-text-primary);
-  transition: all var(--transition-normal);
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 1.25rem;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
   outline: none;
 }
 
-.search-bar__input:focus {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
-  transform: scale(1.02);
+.search-bar__input::placeholder {
+  color: var(--color-text);
+  opacity: 0.6;
 }
 
-.search-bar__input::placeholder {
-  color: var(--color-text-secondary);
+.search-bar__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.search-bar__clear:hover {
+  opacity: 0.6;
+}
+
+.search-bar__clear svg {
+  width: 24px;
+  height: 24px;
 }
 
 /* Search Suggestions Dropdown */
 .search-suggestions {
   position: absolute;
-  top: 120%;
+  top: calc(100% + 0.5rem);
   left: 0;
   right: 0;
-  background: var(--color-glass-bg);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--color-glass-border);
-  border-radius: 1rem;
+  z-index: 50;
+  background: var(--color-background);
+  border: 2px solid var(--color-text);
+  border-radius: 15px;
   overflow: hidden;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
   animation: slideDown var(--transition-fast) forwards;
-  display: grid;
-  grid-template-columns: 1fr;
 }
 
 @keyframes slideDown {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-8px);
   }
 
   to {
@@ -157,11 +291,10 @@ body {
 }
 
 .search-suggestions__item {
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1.25rem;
   cursor: pointer;
-  color: var(--color-text-secondary);
-  transition: all var(--transition-fast);
-  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  transition: background-color var(--transition-fast);
   background: transparent;
   list-style: none;
   font-size: 1rem;
@@ -169,38 +302,37 @@ body {
   width: 100%;
 }
 
-.search-suggestions__item:last-child {
-  border-bottom: none;
-}
-
 .search-suggestions__item:hover,
 .search-suggestions__item:focus,
 .search-suggestions__item--active {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: var(--color-accent);
-  padding-left: 2rem;
-  /* Micro-animation */
+  background-color: rgba(40, 42, 42, 0.08);
   outline: none;
+}
+
+:root[data-theme="dark"] .search-suggestions__item:hover,
+:root[data-theme="dark"] .search-suggestions__item:focus,
+:root[data-theme="dark"] .search-suggestions__item--active {
+  background-color: rgba(236, 233, 227, 0.1);
 }
 
 /* Word Card Component */
 .word-card {
   font-family: var(--font-body);
-  background: linear-gradient(145deg, var(--color-bg-secondary), rgba(30, 41, 59, 0.4));
-  border: 1px solid var(--color-glass-border);
-  border-radius: 1.5rem;
-  padding: 2.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-  display: grid;
-  grid-template-columns: 1fr;
-  row-gap: 1.5rem;
+  color: var(--color-text);
+  background: var(--color-background);
+  border: 2px solid var(--color-text);
+  border-radius: 15px;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
   animation: fadeIn var(--transition-normal) forwards;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: scale(0.98);
+    transform: scale(0.99);
   }
 
   to {
@@ -211,104 +343,106 @@ body {
 
 .word-card__header {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--color-border);
-  padding-bottom: 1rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--color-text);
 }
 
 .word-card__title {
   font-family: var(--font-headword);
-  font-size: 3rem;
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-
-.word-card__header-badges {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.word-card__frequency {
-  background: rgba(56, 189, 248, 0.1);
-  color: var(--color-accent);
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.word-card__enriched-badge {
-  background: rgba(167, 139, 250, 0.1);
-  color: #a78bfa;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 400;
+  font-size: 4rem;
+  line-height: 1.2;
+  word-break: break-word;
 }
 
 .word-card__etymology {
-  color: var(--color-text-secondary);
   font-style: italic;
+  font-size: 1rem;
   line-height: 1.6;
 }
 
 .word-card__senses-container {
-  display: grid;
-  grid-template-columns: 1fr;
-  row-gap: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .word-card__pos-section {
-  display: grid;
-  row-gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .word-card__pos-title {
-  font-size: 1.25rem;
-  color: var(--color-accent);
-  text-transform: lowercase;
+  font-family: var(--font-body);
   font-weight: 600;
+  font-size: 1.25rem;
+  line-height: 1.6;
 }
 
 .word-card__definition-list {
   list-style-type: decimal;
   padding-left: 1.5rem;
-  display: grid;
-  row-gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .word-card__definition-item {
-  color: var(--color-text-primary);
+  font-size: 1rem;
   line-height: 1.6;
 }
 
 .word-card__example {
   display: block;
-  color: var(--color-text-secondary);
-  margin-top: 0.5rem;
+  margin-top: 0.25rem;
   padding-left: 1rem;
-  border-left: 2px solid var(--color-border);
+  border-left: 1px solid var(--color-text);
   font-style: italic;
+  font-size: 1rem;
+  line-height: 1.6;
+  opacity: 0.8;
 }
 
 .word-card__subsense-list {
   list-style-type: lower-alpha;
   padding-left: 1.5rem;
-  margin-top: 0.75rem;
-  display: grid;
-  row-gap: 0.75rem;
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .word-card__subsense-item {
-  color: var(--color-text-secondary);
+  font-size: 1rem;
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+/* Synonyms / Antonyms */
+.word-card__relations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.word-card__relations-title {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 1.25rem;
+  line-height: 1.6;
+}
+
+.word-card__relations-list {
+  font-size: 1rem;
   line-height: 1.6;
 }
 
 .word-card__loading {
   text-align: center;
-  color: var(--color-text-secondary);
+  color: var(--color-text);
   padding: 3rem;
   font-size: 1.25rem;
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;

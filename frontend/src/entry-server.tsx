@@ -6,6 +6,8 @@ export default createHandler(() => (
     document={({ assets, children, scripts }) => (
       <html lang="en">
         <head>
+          {/* Set the theme before first paint to avoid a flash of the wrong mode. */}
+          <script>{`(function(){try{var t=localStorage.getItem('theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}</script>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />

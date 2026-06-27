@@ -7,6 +7,8 @@ import {
   onCleanup,
 } from "solid-js";
 import { useNavigate } from "@solidjs/router";
+import SearchIcon from "../assets/search.svg?component-solid";
+import CloseIcon from "../assets/close.svg?component-solid";
 
 /**
  * Fetches autocomplete suggestions from the backend.
@@ -103,32 +105,58 @@ export default function SearchBar() {
     }
   };
 
+  // Clear the input and refocus so the user can keep typing.
+  const handleClear = () => {
+    clearTimeout(timeoutId);
+    setQuery("");
+    setDebouncedQuery("");
+    setShowSuggestions(false);
+    setActiveIndex(-1);
+    document.getElementById("search-bar-input")?.focus();
+  };
+
   return (
     <div class="search-bar">
-      <input
-        id="search-bar-input"
-        type="text"
-        class="search-bar__input"
-        classList={{ "search-bar__input--loading": suggestions.loading }}
-        placeholder="Search for a word..."
-        value={query()}
-        onInput={(e) => updateQuery(e.currentTarget.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={() => {
-          // Delay hiding to allow click events on suggestions to fire
-          setTimeout(() => setShowSuggestions(false), 200);
-        }}
-        onFocus={() => {
-          if ((suggestions.latest?.length ?? 0) > 0) setShowSuggestions(true);
-        }}
-        role="combobox"
-        aria-expanded={showSuggestions()}
-        aria-controls="search-suggestions-list"
-        aria-activedescendant={
-          activeIndex() >= 0 ? `suggestion-${activeIndex()}` : undefined
-        }
-        autocomplete="off"
-      />
+      <div class="search-bar__field">
+        <span class="search-bar__icon" aria-hidden="true">
+          <SearchIcon />
+        </span>
+        <input
+          id="search-bar-input"
+          type="text"
+          class="search-bar__input"
+          classList={{ "search-bar__input--loading": suggestions.loading }}
+          placeholder="Search for a word..."
+          value={query()}
+          onInput={(e) => updateQuery(e.currentTarget.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={() => {
+            // Delay hiding to allow click events on suggestions to fire
+            setTimeout(() => setShowSuggestions(false), 200);
+          }}
+          onFocus={() => {
+            if ((suggestions.latest?.length ?? 0) > 0) setShowSuggestions(true);
+          }}
+          role="combobox"
+          aria-expanded={showSuggestions()}
+          aria-controls="search-suggestions-list"
+          aria-activedescendant={
+            activeIndex() >= 0 ? `suggestion-${activeIndex()}` : undefined
+          }
+          autocomplete="off"
+        />
+        <Show when={query().length > 0}>
+          <button
+            type="button"
+            class="search-bar__clear"
+            aria-label="Clear search"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleClear}
+          >
+            <CloseIcon aria-hidden="true" />
+          </button>
+        </Show>
+      </div>
       <Show when={showSuggestions() && (suggestions.latest?.length ?? 0) > 0}>
         <ul
           id="search-suggestions-list"

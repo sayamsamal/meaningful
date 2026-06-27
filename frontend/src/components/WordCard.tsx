@@ -59,16 +59,6 @@ export default function WordCard(props: WordCardProps) {
             <div class="word-card">
               <header class="word-card__header">
                 <h1 class="word-card__title">{entry().word}</h1>
-                <span class="word-card__header-badges">
-                  <Show when={entry().data_enriched}>
-                    <span class="word-card__enriched-badge">Enriched</span>
-                  </Show>
-                  <Show when={entry().frequency > 0}>
-                    <span class="word-card__frequency">
-                      Zipf: {entry().frequency.toFixed(2)}
-                    </span>
-                  </Show>
-                </span>
               </header>
 
               <Show
@@ -159,6 +149,24 @@ export default function WordCard(props: WordCardProps) {
                     )}
                   </For>
                 </div>
+              </Show>
+
+              <Show when={entry().synonyms?.length}>
+                <section class="word-card__relations">
+                  <h2 class="word-card__relations-title">Synonyms</h2>
+                  <p class="word-card__relations-list">
+                    {entry().synonyms!.join(", ")}
+                  </p>
+                </section>
+              </Show>
+
+              <Show when={entry().antonyms?.length}>
+                <section class="word-card__relations">
+                  <h2 class="word-card__relations-title">Antonyms</h2>
+                  <p class="word-card__relations-list">
+                    {entry().antonyms!.join(", ")}
+                  </p>
+                </section>
               </Show>
             </div>
           )}
