@@ -263,3 +263,6 @@ The API assembled its DSN from the `POSTGRES_*` parts with no `sslmode`, so it c
 
 ### Multi-stage production backend image (2026-07-03)
 `backend/Dockerfile` is a multi-stage build: a static `CGO_ENABLED=0` binary compiled on `golang:alpine`, copied into a minimal `alpine` runtime with `ca-certificates` (required for the managed-Postgres TLS handshake), running as a non-root user.
+
+### SolidStart on Cloudflare Workers — use the official nitro/vite plugin (2026-07-03)
+SolidStart 2.0-alpha's `@solidjs/vite-plugin-nitro-2` generates broken Cloudflare output (solid-start#2115): the worker builds but throws "Illegal invocation" in `sendWebResponse` at runtime — a 500 on every route. Fix: switch to Nitro's official vite plugin with `exportConditions: ["worker"]` (the maintainer-confirmed workaround), which resolves worker-safe builds of dependencies. Nitro v3 also emits `.output/server/wrangler.json` (main, assets binding, `nodejs_compat`) and redirects wrangler to it, so `wrangler.toml` is trimmed to just name + compat settings and `npx wrangler deploy` works as-is.

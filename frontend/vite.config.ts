@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { nitroV2Plugin as nitro } from "@solidjs/vite-plugin-nitro-2";
+import { nitro } from "nitro/vite";
 import solidSvg from "vite-plugin-solid-svg";
 
 import { solidStart } from "@solidjs/start/config";
@@ -20,10 +20,14 @@ export default defineConfig({
         },
       },
     }),
-    nitro({
-      // Build for Cloudflare Workers (module worker, workerd runtime).
-      preset: "cloudflare-module",
-      rollupConfig: { external: ["node:async_hooks"] },
-    }),
+    nitro(),
   ],
+  // Nitro config lives here (read by the official nitro/vite plugin). The SolidStart
+  // 2.0-alpha vite-plugin-nitro-2 produces broken Cloudflare output (solid-start#2115);
+  // the official plugin + `exportConditions: ["worker"]` resolves worker-safe builds and
+  // fixes the runtime "Illegal invocation" in sendWebResponse.
+  nitro: {
+    preset: "cloudflare_module",
+    exportConditions: ["worker"],
+  },
 });
