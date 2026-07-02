@@ -20,6 +20,10 @@ export default defineConfig({
         },
       },
     }),
-    nitro(),
+    nitro({
+      // Build for Cloudflare Workers (module worker, workerd runtime).
+      preset: "cloudflare-module",
+      rollupConfig: { external: ["node:async_hooks"] },
+    }),
   ],
 });

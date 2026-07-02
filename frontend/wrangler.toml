@@ -1,0 +1,15 @@
+# Cloudflare Workers deploy config for the SolidStart (Nitro cloudflare-module) build.
+# `pnpm build` emits the worker entry + static assets under .output/, which this
+# config points wrangler at. Deploy with `npx wrangler deploy`.
+name = "meaningful"
+main = "./.output/server/index.mjs"
+# Matches Nitro's default compatibility date (what the bundle is compiled against).
+compatibility_date = "2024-11-19"
+# Required — workerd is not Node.js; the SSR bundle imports node:async_hooks
+# (externalized in vite.config.ts), which only resolves with this flag enabled.
+compatibility_flags = ["nodejs_compat"]
+
+# Static-first serving: matching files in .output/public are served directly by
+# the edge; everything else (SSR routes) falls through to the worker.
+[assets]
+directory = "./.output/public"
