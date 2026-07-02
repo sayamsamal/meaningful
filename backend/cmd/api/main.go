@@ -15,26 +15,32 @@ import (
 )
 
 func main() {
-	// 1. Setup Database Connections
-	dbHost := os.Getenv("POSTGRES_HOST")
-	if dbHost == "" {
-		dbHost = "localhost"
-	}
-	dbUser := os.Getenv("POSTGRES_USER")
-	if dbUser == "" {
-		dbUser = "postgres"
-	}
-	dbPassword := os.Getenv("POSTGRES_PASSWORD")
-	if dbPassword == "" {
-		dbPassword = "postgres"
-	}
-	dbName := os.Getenv("POSTGRES_DB")
-	if dbName == "" {
-		dbName = "meaningful"
+	// 1. Setup Database Connections.
+	// A full DATABASE_URL (with sslmode) takes precedence — required for managed
+	// Postgres providers that mandate TLS (e.g. Azure Flexible Server). Falls back
+	// to assembling a DSN from the POSTGRES_* parts for local docker-compose dev.
+	pgConnString := os.Getenv("DATABASE_URL")
+	if pgConnString == "" {
+		dbHost := os.Getenv("POSTGRES_HOST")
+		if dbHost == "" {
+			dbHost = "localhost"
+		}
+		dbUser := os.Getenv("POSTGRES_USER")
+		if dbUser == "" {
+			dbUser = "postgres"
+		}
+		dbPassword := os.Getenv("POSTGRES_PASSWORD")
+		if dbPassword == "" {
+			dbPassword = "postgres"
+		}
+		dbName := os.Getenv("POSTGRES_DB")
+		if dbName == "" {
+			dbName = "meaningful"
+		}
+		pgConnString = fmt.Sprintf("postgres://%s:%s@%s:5432/%s", dbUser, dbPassword, dbHost, dbName)
 	}
 
-	pgConnString := fmt.Sprintf("postgres://%s:%s@%s:5432/%s", dbUser, dbPassword, dbHost, dbName)
-	log.Printf("Connecting to Postgres at %s", dbHost)
+	log.Println("Connecting to Postgres...")
 	pgDB, err := database.ConnectPostgres(pgConnString)
 	if err != nil {
 		log.Fatalf("Failed to connect to Postgres: %v", err)
