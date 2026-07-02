@@ -260,3 +260,6 @@ Production deployment: Cloudflare Workers (frontend SSR) + managed Postgres and 
 
 ### Managed Postgres via DATABASE_URL (2026-07-03)
 The API assembled its DSN from the `POSTGRES_*` parts with no `sslmode`, so it could not reach managed Postgres that mandates TLS (Azure Flexible Server, `sslmode=require`). `cmd/api/main.go` now prefers a full `DATABASE_URL` connection string when set and falls back to the assembled DSN for local docker-compose dev, so the same binary works in both.
+
+### Multi-stage production backend image (2026-07-03)
+`backend/Dockerfile` is a multi-stage build: a static `CGO_ENABLED=0` binary compiled on `golang:alpine`, copied into a minimal `alpine` runtime with `ca-certificates` (required for the managed-Postgres TLS handshake), running as a non-root user.
