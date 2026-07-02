@@ -6,6 +6,7 @@ dist
 .netlify
 .vinxi
 app.config.timestamp_*.js
+.solid-start
 
 # Environment
 .env
