@@ -36,7 +36,8 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "5173:5173"
+      # Nitro/Cloudflare dev server listens on 3000; expose it on host 5173.
+      - "5173:3000"
     environment:
       - BACKEND_URL=http://backend:8080
     volumes:

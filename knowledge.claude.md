@@ -269,3 +269,6 @@ SolidStart 2.0-alpha's `@solidjs/vite-plugin-nitro-2` generates broken Cloudflar
 
 ### CI — backend build & deploy (2026-07-07)
 `.github/workflows/backend.yml`: on push to `main` touching `backend/**`, build the Go image, push it to `ghcr.io` via the built-in `GITHUB_TOKEN`, then roll a new Azure Container Apps revision (`az containerapp update`) using the `AZURE_CREDENTIALS` secret.
+
+### pnpm pinning + local Nitro dev port (2026-07-08)
+Pin pnpm via `package.json` `"packageManager"` so corepack drives the version everywhere (Docker, host, Cloudflare CI). pnpm-latest hard-fails `pnpm install` on esbuild's ignored build script (`ERR_PNPM_IGNORED_BUILDS`) and ignores the package.json allow-list, so also declare `pnpm.onlyBuiltDependencies` for esbuild. After the Nitro/Vite switch the local dev server listens on **3000** (not 5173); docker-compose maps host 5173 -> container 3000.
