@@ -1,0 +1,70 @@
+name: Backend — build & deploy
+
+# Builds the Go backend image, pushes it to GHCR, and rolls a new Azure
+# Container Apps revision. Triggers on backend changes pushed to main.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: meaningful-backend
+  CONTAINERAPP_NAME: meaningful-backend
+  RESOURCE_GROUP: shared-infra
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to GHCR via GITHUB_TOKEN
+      id-token: write # allow Azure OIDC login if you switch to it
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR image repos must be lowercase; the owner login may not be.
+      - name: Resolve image repo
+        id: img
+        run: echo "repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ steps.img.outputs.repo }}:${{ github.sha }}
+            ${{ steps.img.outputs.repo }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Requires the AZURE_CREDENTIALS secret: an SP with Contributor on the
+      # resource group, created via:
+      #   az ad sp create-for-rbac --name meaningful-ci \
+      #     --role contributor \
+      #     --scopes /subscriptions/<SUB_ID>/resourceGroups/default \
+      #     --sdk-auth
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Roll new Container Apps revision
+        run: |
+          az containerapp update \
+            --name "$CONTAINERAPP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "${{ steps.img.outputs.repo }}:${{ github.sha }}"

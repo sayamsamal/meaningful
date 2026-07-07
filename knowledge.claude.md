@@ -266,3 +266,6 @@ The API assembled its DSN from the `POSTGRES_*` parts with no `sslmode`, so it c
 
 ### SolidStart on Cloudflare Workers — use the official nitro/vite plugin (2026-07-03)
 SolidStart 2.0-alpha's `@solidjs/vite-plugin-nitro-2` generates broken Cloudflare output (solid-start#2115): the worker builds but throws "Illegal invocation" in `sendWebResponse` at runtime — a 500 on every route. Fix: switch to Nitro's official vite plugin with `exportConditions: ["worker"]` (the maintainer-confirmed workaround), which resolves worker-safe builds of dependencies. Nitro v3 also emits `.output/server/wrangler.json` (main, assets binding, `nodejs_compat`) and redirects wrangler to it, so `wrangler.toml` is trimmed to just name + compat settings and `npx wrangler deploy` works as-is.
+
+### CI — backend build & deploy (2026-07-07)
+`.github/workflows/backend.yml`: on push to `main` touching `backend/**`, build the Go image, push it to `ghcr.io` via the built-in `GITHUB_TOKEN`, then roll a new Azure Container Apps revision (`az containerapp update`) using the `AZURE_CREDENTIALS` secret.
