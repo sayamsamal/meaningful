@@ -8,3 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 BACKEND_URL = "https://api.meaningfuldictionary.com"
+
+[observability.logs]
+enabled = true
+invocation_logs = true
