@@ -272,3 +272,6 @@ SolidStart 2.0-alpha's `@solidjs/vite-plugin-nitro-2` generates broken Cloudflar
 
 ### pnpm pinning + local Nitro dev port (2026-07-08)
 Pin pnpm via `package.json` `"packageManager"` so corepack drives the version everywhere (Docker, host, Cloudflare CI). pnpm-latest hard-fails `pnpm install` on esbuild's ignored build script (`ERR_PNPM_IGNORED_BUILDS`) and ignores the package.json allow-list, so also declare `pnpm.onlyBuiltDependencies` for esbuild. After the Nitro/Vite switch the local dev server listens on **3000** (not 5173); docker-compose maps host 5173 -> container 3000.
+
+### process.env on deployed Cloudflare Workers (2026-07-08)
+On the deployed Worker, SSR `process.env.BACKEND_URL` (in WordCard) resolved empty because `compatibility_date` predated `nodejs_compat` auto-populating `process.env` from the Worker's bindings, so SSR fell back to `http://backend:8080` and returned 403. Bump `compatibility_date` to >= 2025-04-01 to turn on `nodejs_compat_populate_process_env`, and add `[vars] BACKEND_URL` (the API origin) as the server-side runtime binding. `VITE_BACKEND_URL` stays a build-time var for the browser.

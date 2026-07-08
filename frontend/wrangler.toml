@@ -3,5 +3,8 @@
 # and redirects wrangler to it, so `main`/`assets` are NOT set here — only the fields
 # Nitro merges in: the worker name, compat date, and Node compatibility flag.
 name = "meaningful"
-compatibility_date = "2024-11-19"
+compatibility_date = "2026-07-07"
 compatibility_flags = ["nodejs_compat"]
+
+[vars]
+BACKEND_URL = "https://api.meaningfuldictionary.com"
